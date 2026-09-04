@@ -1,0 +1,111 @@
+"""skillhub 投影功能集成测试 — 用临时目录模拟 agent 与中央库, 不触碰真实环境。
+
+用法: python3 tests/test_projection.py
+"""
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+# 项目根目录: 从本测试文件动态推导, 不写死绝对路径
+WS = Path(__file__).resolve().parents[1]
+
+
+def main():
+    tmp = tempfile.mkdtemp(prefix="skillhub-test-")
+    # 复制真实 pi 的 skill 到假目录, 作为唯一的 skill 来源 (导入+投影都指向这里)
+    real_pi = Path.home() / ".agents" / "skills"
+    fake_pi = Path(tmp) / "fake-pi-skills"
+    shutil.copytree(real_pi, fake_pi)
+    env = dict(os.environ)
+    env["SKILLHUB_HOME"] = str(Path(tmp) / "hub")
+    env["SKILLHUB_AGENT_DIR_pi"] = str(fake_pi)
+
+    def run(*args):
+        r = subprocess.run([sys.executable, "-m", "skillhub", *args], cwd=WS,
+                           capture_output=True, text=True, env=env)
+        return r
+
+    # 1) 导入真实 pi 的 skill 到临时中央库 (数量动态计算, 不硬编码)
+    r = run("import", "--agent", "pi", "--apply")
+    assert r.returncode == 0, r.stderr
+    expected = len([p for p in fake_pi.iterdir() if p.is_dir() and not p.name.startswith(".")])
+    assert f"已导入 {expected} 个" in r.stdout, r.stdout
+    print(f"[OK] import --apply ({expected} skills)")
+
+    # 2) 假目录里的 dws 本身就是"原有同名真实目录"(从真实 pi 复制来的), 加标记文件
+    target = fake_pi / "dws"  # 投影目标按 manifest.name 命名
+    (target / "keep.txt").write_text("original")
+
+    # 3) dry-run: 应报告冲突
+    r = run("link", "dws", "--agents", "pi", "--dry-run")
+    assert r.returncode == 0, r.stderr
+    assert "conflict" in r.stdout, r.stdout
+    print("[OK] link dry-run detects conflict")
+
+    # 4) 无 --force 执行: 应拒绝且不删除原目录
+    r = run("link", "dws", "--agents", "pi")
+    assert r.returncode == 0
+    assert "冲突未执行" in r.stdout, r.stdout
+    assert (target / "keep.txt").exists()
+    print("[OK] link without --force refuses")
+
+    # 5) --force: 备份原目录并创建符号链接
+    r = run("link", "dws", "--agents", "pi", "--force")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert target.is_symlink(), "target should be symlink"
+    assert (target / "SKILL.md").exists()
+    print("[OK] link --force creates symlink")
+
+    # 6) 重复 link: skip
+    r = run("link", "dws", "--agents", "pi")
+    assert "skip" in r.stdout, r.stdout
+    print("[OK] re-link skips")
+
+    # 7) status 显示 linked
+    r = run("status", "--agent", "pi")
+    assert "linked=" in r.stdout
+    print("[OK] status shows linked")
+
+    # 8) backups 存在
+    r = run("backups")
+    assert r.returncode == 0 and "20" in r.stdout, r.stdout
+    print("[OK] backups listed")
+
+    # 9) unlink 移除投影
+    r = run("unlink", "dws", "--agents", "pi")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not target.exists(), "unlink should remove symlink"
+    print("[OK] unlink removes projection")
+
+    # 10) rollback: 未知备份报错
+    r = run("rollback", "nonexistent-ts")
+    assert r.returncode == 1
+    print("[OK] rollback rejects unknown backup")
+
+    # 11) 真实备份名 rollback 可执行
+    r = run("backups")
+    ts = r.stdout.strip().split()[-1]
+    r = run("rollback", ts)
+    assert r.returncode == 0, r.stdout + r.stderr
+    print("[OK] rollback to existing backup")
+
+    # 12) link 到未知 agent 报错
+    r = run("link", "dws", "--agents", "nope")
+    assert r.returncode == 0
+    assert "未知 agent" in r.stdout, r.stdout
+    print("[OK] unknown agent reported")
+
+    # 13) list 显示
+    r = run("list")
+    assert "dws" in r.stdout
+    print("[OK] list shows skills")
+
+    shutil.rmtree(tmp)
+    print("\n=== 全部通过 ===")
+
+
+if __name__ == "__main__":
+    main()
