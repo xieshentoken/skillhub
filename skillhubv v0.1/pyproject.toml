@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skillhub"
+version = "0.1.0"
+description = "本机多 Agent Skill / MCP 集中管理：中央库 + 投影分发 + 密钥零明文"
+readme = "skillhub/README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["agent", "skill", "mcp", "claude", "codex", "opencode"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[project.scripts]
+skillhub = "skillhub.cli:main"
+
+[tool.setuptools]
+packages = ["skillhub"]
