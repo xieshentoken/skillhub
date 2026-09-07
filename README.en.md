@@ -26,6 +26,8 @@ Once installed, use the `skillhub` command directly. Without installing, run `py
     store.py               # central store: import, dedupe, index
     adapters.py            # projection engine: link/unlink, conflicts, backup/rollback
     mcp.py                 # MCP config layer: central definitions + per-agent renderers
+    webgui.py              # local web GUI server (read-only, 127.0.0.1 only)
+    gui.html               # GUI single-page frontend
     cli.py                 # command-line entry point
   tests/test_projection.py # integration tests (temp dirs only, never touches real env)
 
@@ -68,9 +70,25 @@ python3 -m skillhub status [--agent pi] [--verbose]
 # Backups and rollback
 python3 -m skillhub backups
 python3 -m skillhub rollback <timestamp>
+
+# Local web GUI (read-only: agent overview / central store / MCP / backups)
+python3 -m skillhub gui [--port 8317] [--no-browser]
 ```
 
 `link`/`unlink` accept a full skill_id or a name prefix.
+
+## Web GUI
+
+`skillhub gui` starts a local web console (opens the browser automatically):
+
+- **Agent overview**: per-agent dir, projection mode (symlink/copy/nested), linked/conflict/unprojected counts with ratio bars, MCP support;
+- **Central store**: search + filter by agent/state/risk; each row shows per-agent projection state as colored dots; click a row for details (manifest, per-agent target paths, file listing);
+- **MCP servers**: central definitions (transport, target, env/header variable names, agents);
+- **Backups**: snapshot sizes and whether replaced conflict dirs are included.
+
+Safety: **read-only** — binds `127.0.0.1` only, GET only, no write operations;
+projection/import/generation remain CLI-only. The GUI reads the same `~/.skillhub`
+data as the CLI; hit refresh for the latest state.
 
 ## MCP Configuration Layer
 

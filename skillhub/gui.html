@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skillhub 控制台</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#0f1522; --line:#1e293b; --line2:#26324a;
+    --text:#e2e8f0; --muted:#8ea0bd; --dim:#5b6b87;
+    --accent:#4f8cff; --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --gray:#3b4a63;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.55 -apple-system,"PingFang SC","Helvetica Neue",sans-serif}
+  a{color:var(--accent);text-decoration:none}
+  header{position:sticky;top:0;z-index:20;background:rgba(11,15,23,.92);backdrop-filter:blur(8px);
+         border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;
+         gap:14px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.3px}
+  header h1 span{color:var(--accent)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:6px}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:20px;
+        padding:2px 10px;font-size:12px;color:var(--muted)}
+  .chip b{color:var(--text)}
+  .spacer{flex:1}
+  button{background:var(--panel);color:var(--text);border:1px solid var(--line2);
+         border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--accent);color:#fff}
+  .paths{font:11px var(--mono);color:var(--dim);padding:4px 20px 0}
+  nav{display:flex;gap:4px;padding:10px 20px 0;border-bottom:1px solid var(--line)}
+  nav button{border:none;border-radius:8px 8px 0 0;background:transparent;color:var(--muted);
+             padding:8px 16px;font-size:14px;border-bottom:2px solid transparent}
+  nav button.active{color:#fff;border-bottom-color:var(--accent);background:var(--panel2)}
+  main{padding:18px 20px 60px;max-width:1400px;margin:0 auto}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 2px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .dotc{width:10px;height:10px;border-radius:50%;flex:none}
+  .badge{font-size:11px;border:1px solid var(--line2);border-radius:6px;padding:1px 7px;color:var(--muted)}
+  .badge.copy{color:var(--amber);border-color:rgba(245,158,11,.4)}
+  .badge.warn{color:var(--red);border-color:rgba(239,68,68,.4)}
+  .badge.ok{color:var(--green);border-color:rgba(34,197,94,.4)}
+  .dir{font:11px var(--mono);color:var(--dim);word-break:break-all;margin:4px 0 10px}
+  .nums{display:flex;gap:14px;font-size:13px;margin-bottom:8px}
+  .nums b{font-size:17px;margin-right:3px}
+  .bar{height:6px;border-radius:4px;background:var(--gray);overflow:hidden;display:flex}
+  .bar i{display:block;height:100%}
+  .meta{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.7}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  input[type=text],select{background:var(--panel2);border:1px solid var(--line2);color:var(--text);
+       border-radius:8px;padding:7px 12px;font-size:13px;outline:none}
+  input[type=text]:focus{border-color:var(--accent)}
+  input[type=text]{min-width:240px}
+  label.ck{font-size:13px;color:var(--muted);display:flex;gap:5px;align-items:center;cursor:pointer}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+  th{color:var(--muted);font-weight:600;background:var(--panel2);position:sticky;top:0;white-space:nowrap}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:#182136}
+  td.mono,span.mono{font:12px var(--mono)}
+  .risk{display:inline-block;font-size:11px;border-radius:5px;padding:1px 6px;margin:1px 3px 1px 0;
+        background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
+  .risk.none{background:transparent;color:var(--dim);border-color:var(--line)}
+  .sdot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;cursor:default}
+  .s-linked{background:var(--green)} .s-conflict{background:var(--amber)} .s-not_linked{background:var(--gray)}
+  .desc{color:var(--muted);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 抽屉 */
+  #drawer{position:fixed;top:0;right:-560px;width:560px;max-width:94vw;height:100vh;z-index:50;
+          background:var(--panel2);border-left:1px solid var(--line2);transition:right .22s ease;
+          display:flex;flex-direction:column;box-shadow:-18px 0 50px rgba(0,0,0,.5)}
+  #drawer.open{right:0}
+  #drawer .dhead{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  #drawer .dhead h2{margin:0;font-size:16px;flex:1}
+  #drawer .dbody{overflow:auto;padding:16px 18px;flex:1}
+  #mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none}
+  #mask.show{display:block}
+  .kv{display:grid;grid-template-columns:96px 1fr;gap:4px 12px;font-size:13px;margin-bottom:16px}
+  .kv dt{color:var(--dim)} .kv dd{margin:0;word-break:break-all}
+  .sect{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px}
+  .filelist{font:12px var(--mono);color:var(--muted);max-height:260px;overflow:auto;
+            border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--bg)}
+  .filelist div{display:flex;justify-content:space-between;gap:10px;padding:1px 0}
+  .projline{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px}
+  .projline .mono{color:var(--dim);font-size:11px;word-break:break-all}
+  .empty{color:var(--dim);text-align:center;padding:40px 0}
+  .note{font-size:12px;color:var(--dim);margin-top:10px}
+  .note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>skill<span>hub</span> 控制台</h1>
+  <div class="chips" id="chips"></div>
+  <div class="spacer"></div>
+  <span style="font-size:12px;color:var(--dim)" id="genat"></span>
+  <button onclick="load()">↻ 刷新</button>
+</header>
+<div class="paths" id="paths"></div>
+<nav id="tabs">
+  <button data-t="ov" class="active">Agent 概览</button>
+  <button data-t="sk">中央库 Skills</button>
+  <button data-t="mc">MCP Servers</button>
+  <button data-t="bk">备份</button>
+</nav>
+<main>
+  <section id="tab-ov"></section>
+  <section id="tab-sk" hidden>
+    <div class="toolbar">
+      <input type="text" id="q" placeholder="搜索名称 / 描述 / skill_id…">
+      <select id="fAgent"><option value="">全部 agent 投影状态</option></select>
+      <select id="fState">
+        <option value="">任意状态</option>
+        <option value="linked">已投影</option>
+        <option value="conflict">冲突</option>
+        <option value="not_linked">未投影</option>
+      </select>
+      <label class="ck"><input type="checkbox" id="fRisk"> 仅看有风险的</label>
+      <span class="note" id="skCount"></span>
+    </div>
+    <div id="skTable"></div>
+    <p class="note"><b>图例:</b>
+      <span class="sdot s-linked"></span>已投影(链接指向中央库)
+      <span class="sdot s-conflict"></span>冲突(目标存在但非本库投影)
+      <span class="sdot s-not_linked"></span>未投影。点击行看详情与各 agent 目标路径。</p>
+  </section>
+  <section id="tab-mc" hidden></section>
+  <section id="tab-bk" hidden></section>
+</main>
+
+<div id="mask" onclick="closeDrawer()"></div>
+<div id="drawer">
+  <div class="dhead"><h2 id="dTitle"></h2><button onclick="closeDrawer()">✕ 关闭</button></div>
+  <div class="dbody" id="dBody"></div>
+</div>
+
+<script>
+const AGENT_COLORS={pi:"#a78bfa",codex:"#34d399",opencode:"#fbbf24",workbuddy:"#38bdf8",claude:"#f472b6",grok:"#22d3ee",hermes:"#a3e635"};
+const STATE_LABEL={linked:"已投影",conflict:"冲突",not_linked:"未投影"};
+let DATA=null, TAB="ov";
+
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtSize=n=>n<0?"":n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
+const color=a=>AGENT_COLORS[a]||"#94a3b8";
+
+async function load(){
+  const r=await fetch("/api/data"); DATA=await r.json();
+  renderChips(); renderOverview(); renderSkills(); renderMcp(); renderBackups();
+}
+
+/* ---------- header ---------- */
+function renderChips(){
+  const s=DATA.summary;
+  document.getElementById("chips").innerHTML=
+    `<span class="chip">skills <b>${s.skills}</b></span>`+
+    `<span class="chip">风险 <b style="color:${s.risky?"#fca5a5":"inherit"}">${s.risky}</b></span>`+
+    `<span class="chip">agents <b>${s.agents}</b></span>`+
+    `<span class="chip">投影总数 <b style="color:var(--green)">${s.linked_total}</b></span>`+
+    `<span class="chip">MCP <b>${s.mcp_servers}</b></span>`+
+    `<span class="chip">备份 <b>${s.backups}</b></span>`;
+  document.getElementById("genat").textContent="生成于 "+DATA.generated_at;
+  const p=DATA.paths;
+  document.getElementById("paths").innerHTML=
+    `store <span class="mono">${esc(p.store)}</span> · index <span class="mono">${esc(p.index)}</span>`;
+}
+
+/* ---------- 概览 ---------- */
+function renderOverview(){
+  const el=document.getElementById("tab-ov");
+  el.innerHTML=`<div class="cards">`+DATA.agents.map(a=>{
+    const tot=Math.max(a.total_in_store,1);
+    const pct=(n)=>(n/tot*100).toFixed(1)+"%";
+    const dirOk=a.dir_exists?`<span class="badge ok">目录存在</span>`:`<span class="badge warn">目录未创建</span>`;
+    const mcp=a.mcp_supported?`<span class="badge">MCP: ${esc(a.mcp_target)}</span>`:`<span class="badge">MCP 不支持</span>`;
+    return `<div class="card">
+      <h3><i class="dotc" style="background:${color(a.name)}"></i>${esc(a.name)}
+          <span class="badge ${a.mode==="copy"?"copy":""}">${a.mode}${a.nested?" · nested":""}</span></h3>
+      <div class="dir">${esc(a.skill_dir)}</div>
+      <div class="nums">
+        <span style="color:var(--green)"><b>${a.linked}</b>已投影</span>
+        <span style="color:var(--amber)"><b>${a.conflict}</b>冲突</span>
+        <span style="color:var(--muted)"><b>${a.not_linked}</b>未投影</span>
+      </div>
+      <div class="bar">
+        <i style="width:${pct(a.linked)};background:var(--green)"></i>
+        <i style="width:${pct(a.conflict)};background:var(--amber)"></i>
+      </div>
+      <div class="meta">${dirOk} ${mcp} <span class="badge">中央库 ${a.total_in_store} 个</span></div>
+    </div>`;
+  }).join("")+`</div>
+  <p class="note"><b>说明:</b> 已投影 = agent 目录里的条目是指向中央库的软链(symlink 模式)或由本库复制(copy 模式时以存在为准);
+  冲突 = 目标路径已有非本库内容, 需 <span class="mono">--force</span> 处理; 写操作请用 CLI (<span class="mono">skillhub link / unlink / import</span>), 本 GUI 只读。</p>`;
+}
+
+/* ---------- skills ---------- */
+function renderSkills(){
+  const sel=document.getElementById("fAgent");
+  const cur=sel.value;
+  sel.innerHTML=`<option value="">全部 agent 投影状态</option>`+
+    DATA.agents.map(a=>`<option value="${a.name}">${a.name}</option>`).join("");
+  sel.value=cur;
+  ["q","fAgent","fState","fRisk"].forEach(id=>{
+    const e=document.getElementById(id);
+    if(!e._bound){e.addEventListener("input",renderSkillTable);e._bound=1}
+  });
+  renderSkillTable();
+}
+function renderSkillTable(){
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  const fa=document.getElementById("fAgent").value, fs=document.getElementById("fState").value;
+  const fr=document.getElementById("fRisk").checked;
+  const rows=DATA.skills.filter(s=>{
+    if(fr&&!s.risks.length)return false;
+    if(fs){ if(fa){ if(s.states[fa]!==fs)return false } else if(!Object.values(s.states).includes(fs))return false }
+    if(fa&&!fs&&s.states[fa]===undefined)return false;
+    if(q&&!((s.name+" "+s.desc+" "+s.id+" "+s.category).toLowerCase().includes(q)))return false;
+    return true;
+  });
+  document.getElementById("skCount").textContent=`${rows.length} / ${DATA.skills.length} 个 skill`;
+  document.getElementById("skTable").innerHTML=
+   `<table><thead><tr><th>名称</th><th>分类</th><th>描述</th><th>风险</th><th>来源 agent</th><th>投影状态</th></tr></thead><tbody>`+
+   rows.map(s=>`<tr onclick="openSkill('${esc(s.id)}')">
+     <td class="mono">${esc(s.name)}</td>
+     <td style="color:var(--dim)">${esc(s.category)||"—"}</td>
+     <td class="desc" title="${esc(s.desc)}">${esc(s.desc)||"—"}</td>
+     <td>${s.risks.length?s.risks.map(r=>`<span class="risk">${esc(r)}</span>`).join(""):`<span class="risk none">无</span>`}</td>
+     <td>${s.source_agents.map(a=>`<span style="color:${color(a)};font-size:12px">${esc(a)}</span>`).join(" ")}</td>
+     <td>${DATA.agents.map(a=>{const st=s.states[a.name];
+        return st?`<span class="sdot s-${st}" title="${a.name}: ${STATE_LABEL[st]}"></span>`:""}).join("")}</td>
+   </tr>`).join("")+`</tbody></table>`;
+}
+
+/* ---------- skill 详情抽屉 ---------- */
+async function openSkill(sid){
+  document.getElementById("mask").classList.add("show");
+  const dr=document.getElementById("drawer"); dr.classList.add("open");
+  document.getElementById("dTitle").textContent=sid;
+  const body=document.getElementById("dBody");
+  body.innerHTML=`<p class="empty">加载中…</p>`;
+  const r=await fetch("/api/skill/"+encodeURIComponent(sid));
+  const d=await r.json();
+  if(d.error){body.innerHTML=`<p class="empty">${esc(d.error)}</p>`;return}
+  const m=d.manifest;
+  body.innerHTML=`
+    <dl class="kv">
+      <dt>名称</dt><dd><b>${esc(m.name)}</b></dd>
+      <dt>分类</dt><dd>${esc(m.category)||"—"}</dd>
+      <dt>描述</dt><dd>${esc(m.fm_desc)||"—"}</dd>
+      <dt>风险</dt><dd>${(m.risks||[]).length?m.risks.map(x=>`<span class="risk">${esc(x)}</span>`).join(""):"无标记"}</dd>
+      <dt>大小</dt><dd>${fmtSize(m.size||0)}</dd>
+      <dt>导入时间</dt><dd>${esc(m.imported_at||"—")}</dd>
+      <dt>来源</dt><dd>${(m.sources||[]).map(s=>`${esc(s.agent)} <span class="mono" style="color:var(--dim)">${esc(s.path)}</span>`).join("<br>")}</dd>
+      <dt>中央库</dt><dd class="mono" style="color:var(--dim)">${esc(d.store_dir)}</dd>
+    </dl>
+    <div class="sect">各 agent 投影映射</div>
+    ${DATA.agents.map(a=>{const p=d.projections[a.name];
+      return `<div class="projline">
+        <span class="sdot s-${p.state}" title="${STATE_LABEL[p.state]}"></span>
+        <span style="color:${color(a.name)};width:86px;flex:none">${esc(a.name)}</span>
+        <span class="mono">${esc(p.target)}</span></div>`}).join("")}
+    <div class="sect">中央库文件 (${d.files.length})</div>
+    <div class="filelist">${d.files.map(f=>`<div><span>${esc(f.path)}</span><span>${fmtSize(f.size)}</span></div>`).join("")||"空"}</div>`;
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("mask").classList.remove("show");
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer()});
+
+/* ---------- MCP ---------- */
+function renderMcp(){
+  const el=document.getElementById("tab-mc");
+  const rows=DATA.mcp_servers;
+  el.innerHTML=rows.length?
+   `<table><thead><tr><th>id</th><th>transport</th><th>目标</th><th>env / headers</th><th>agents</th><th>启用</th></tr></thead><tbody>`+
+   rows.map(s=>`<tr style="cursor:default">
+     <td class="mono"><b>${esc(s.id)}</b>${s.label?`<div style="color:var(--dim);font-size:11px">${esc(s.label)}</div>`:""}</td>
+     <td><span class="badge">${esc(s.transport)}</span></td>
+     <td class="mono" style="max-width:340px;word-break:break-all">${esc(s.url||[s.command,...(s.args||[])].join(" "))||"—"}</td>
+     <td>${(s.env_keys||[]).map(k=>`<span class="risk" style="background:rgba(79,140,255,.1);color:#93c5fd;border-color:rgba(79,140,255,.3)">env:${esc(k)}</span>`).join(" ")}
+         ${(s.header_keys||[]).map(k=>`<span class="risk" style="background:rgba(163,230,53,.08);color:#d9f99d;border-color:rgba(163,230,53,.25)">hdr:${esc(k)}</span>`).join(" ")||"-"}</td>
+     <td>${(s.agents||[]).map(a=>`<span style="color:${color(a)};font-size:12px">${esc(a)}</span>`).join(" ")||"—"}</td>
+     <td>${s.enabled?`<span class="badge ok">启用</span>`:`<span class="badge">停用</span>`}</td>
+   </tr>`).join("")+`</tbody></table>
+   <p class="note">生成/导入请用 CLI: <span class="mono">skillhub mcp import|list|generate</span>。密钥在中央库只存 <span class="mono">{{env:VAR}}</span> 引用, 这里只显示变量名。</p>`
+   :`<p class="empty">中央库还没有 MCP server 定义。用 <span class="mono">skillhub mcp import --apply</span> 从 workbuddy 导入。</p>`;
+}
+
+/* ---------- 备份 ---------- */
+function renderBackups(){
+  const el=document.getElementById("tab-bk");
+  el.innerHTML=DATA.backups.length?
+   `<table><thead><tr><th>时间戳</th><th>大小</th><th>内容</th></tr></thead><tbody>`+
+   DATA.backups.map(b=>`<tr style="cursor:default">
+     <td class="mono"><b>${esc(b.ts)}</b></td><td>${fmtSize(b.size)}</td>
+     <td>${b.has_conflicts?`<span class="risk">含被替换的冲突目录</span>`:`<span class="badge">store + index 快照</span>`}</td>
+   </tr>`).join("")+`</tbody></table>
+   <p class="note">回滚用 CLI: <span class="mono">skillhub rollback &lt;ts&gt;</span>; 清理旧备份: <span class="mono">skillhub cleanup [--keep 3]</span>。备份目录 <span class="mono">${esc(DATA.paths.backups)}</span></p>`
+   :`<p class="empty">还没有备份。</p>`;
+}
+
+/* ---------- tabs ---------- */
+document.getElementById("tabs").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  TAB=b.dataset.t;
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x===b));
+  ["ov","sk","mc","bk"].forEach(t=>document.getElementById("tab-"+t).hidden=(t!==TAB));
+  if(TAB==="sk")renderSkillTable();
+});
+
+load();
+</script>
+</body>
+</html>

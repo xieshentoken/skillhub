@@ -27,6 +27,8 @@ pip install -e .
     store.py               # 中央库：导入、去重、索引
     adapters.py            # 投影引擎：link/unlink、冲突、备份回滚
     mcp.py                 # MCP 配置层：中央定义 + 各 agent 格式生成
+    webgui.py              # 本地 Web GUI 服务（只读, 仅 127.0.0.1）
+    gui.html               # GUI 单页界面
     cli.py                 # 命令行入口
   tests/test_projection.py # 集成测试（临时目录，不触碰真实环境）
 
@@ -69,9 +71,24 @@ python3 -m skillhub status [--agent pi] [--verbose]
 # 备份与回滚
 python3 -m skillhub backups
 python3 -m skillhub rollback <时间戳>
+
+# 本地 Web GUI（只读浏览：agent 概览 / 中央库 / MCP / 备份）
+python3 -m skillhub gui [--port 8317] [--no-browser]
 ```
 
 `link`/`unlink` 可用 skill_id 或名称前缀定位 skill。
+
+## Web GUI
+
+`skillhub gui` 启动一个本地网页控制台（自动打开浏览器）：
+
+- **Agent 概览**：每个 agent 的目录、投影方式（symlink/copy/nested）、已投影/冲突/未投影计数与比例条、MCP 支持情况；
+- **中央库 Skills**：搜索 + 按 agent/状态/风险过滤，每行用彩色圆点显示 7 个 agent 的投影状态；点击行查看详情（manifest、各 agent 投影目标路径、中央库文件清单）；
+- **MCP Servers**：中央库定义一览（transport、目标、env/header 变量名、适用 agent）；
+- **备份**：备份点大小与是否含被替换的冲突目录。
+
+安全边界：**只读**——只绑定 `127.0.0.1`、只实现 GET、不提供任何写操作；
+投影/导入/生成仍走 CLI。GUI 与 CLI 共享同一份 `~/.skillhub` 数据，刷新即最新。
 
 ## MCP 配置层（阶段 2）
 

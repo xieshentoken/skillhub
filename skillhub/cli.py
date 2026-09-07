@@ -353,6 +353,12 @@ def cmd_mcp_generate(args) -> int:
     return SUCCESS if bad == 0 else ERROR
 
 
+def cmd_gui(args) -> int:
+    from . import webgui
+    webgui.serve(port=args.port, open_browser=not args.no_browser)
+    return SUCCESS
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="skillhub", description=__doc__)
     sub = p.add_subparsers(dest="cmd")
@@ -421,6 +427,11 @@ def main(argv=None) -> int:
     msp.add_argument("--resolve", action="store_true",
                      help="从当前环境变量读真实值注入字面量 (用于不展开 env 的 agent, 如 pi)")
     msp.set_defaults(fn=cmd_mcp_generate)
+
+    sp = sub.add_parser("gui", help="启动本地 Web GUI (只读: agent 概览 / 中央库 / MCP / 备份)")
+    sp.add_argument("--port", type=int, default=8317, help="监听端口 (默认 8317, 仅绑定 127.0.0.1)")
+    sp.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
+    sp.set_defaults(fn=cmd_gui)
 
     args = p.parse_args(argv)
     if not getattr(args, "fn", None):
