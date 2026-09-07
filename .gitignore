@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# 发布打包产物
+*.zip
+skillhub-v*/
+
+# macOS
+.DS_Store

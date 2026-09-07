@@ -6,6 +6,10 @@
   skillhub list [--risky]         列出中央库 skill
   skillhub link <skill_id> --agents a,b [--force] [--dry-run]
                                   投影 skill 到指定 agent (默认 dry-run)
+  skillhub link --all --agents a,b [--force] [--dry-run]
+                                  批量: 投影中央库全部 skill (整批只备份一次)
+  skillhub link --all-missing --agents a,b [--force] [--dry-run]
+                                  批量: 只投影目标 agent 上尚未投影的 skill
   skillhub unlink <skill_id> --agents a,b [--dry-run]
                                   解除投影
   skillhub status [--agent X]     查看各 agent 投影状态
@@ -111,24 +115,89 @@ def _resolve_sid(name_or_id: str) -> str:
     raise SystemExit(ERROR)
 
 
+def _collect_sids(args, agents: list) -> list:
+    """确定本次要投影的 skill 集合。"""
+    if args.all and args.all_missing:
+        print("--all 与 --all-missing 只能选一个", file=sys.stderr)
+        raise SystemExit(ERROR)
+    if args.all:
+        return sorted(store.load_index().keys())
+    if args.all_missing:
+        # 未投影 = status 里不是 linked (含 not_linked 与 conflict)
+        st = adapters.status()
+        sids = set()
+        for agent in agents:
+            for item in st.get(agent, []):
+                if item["state"] != "linked":
+                    sids.add(item["sid"])
+        return sorted(sids)
+    if not args.skill:
+        print("请指定 skill, 或用 --all / --all-missing 批量投影", file=sys.stderr)
+        raise SystemExit(ERROR)
+    return [_resolve_sid(args.skill)]
+
+
+def _summarize(results: dict):
+    """按 action type 汇总批量结果, 返回 (统计, 冲突+错误数)。"""
+    stat: dict = {}
+    for agent, actions in results.items():
+        for a in actions:
+            stat[a["type"]] = stat.get(a["type"], 0) + 1
+    bad = stat.get("conflict", 0) + stat.get("error", 0)
+    return stat, bad
+
+
+def _fmt_stat(stat: dict) -> str:
+    return ", ".join(f"{k} {v}" for k, v in sorted(stat.items())) or "无"
+
+
 def cmd_link(args) -> int:
-    sid = _resolve_sid(args.skill)
     agents = [a for a in args.agents.split(",") if a]
     if not agents:
         print("请用 --agents 指定目标 agent (如 pi,codex)", file=sys.stderr)
         return ERROR
-    plan = adapters.plan_link(sid, agents)
-    print(f"投影计划: {sid}")
-    bad = _print_actions(plan)
+    sids = _collect_sids(args, agents)
+    batch = bool(args.all or args.all_missing)
+
+    if not batch:
+        sid = sids[0]
+        plan = adapters.plan_link(sid, agents)
+        print(f"投影计划: {sid}")
+        bad = _print_actions(plan)
+        if args.dry_run:
+            print("\n(预览模式, 未写入。去掉 --dry-run 执行。)")
+            return SUCCESS
+        if bad and not args.force:
+            print("\n(存在冲突未执行。对冲突项加 --force 才会备份后替换。)")
+            return SUCCESS
+        results = adapters.apply_link(sid, agents, force=args.force)
+        print("\n执行结果:")
+        bad = _print_actions(results)
+        return SUCCESS if bad == 0 else ERROR
+
+    print(f"批量投影: {len(sids)} 个 skill → agents={agents}")
+    plan: dict = {}
+    conflict_sids: list = []
+    for sid in sids:
+        for agent, actions in adapters.plan_link(sid, agents).items():
+            plan.setdefault(agent, []).extend(actions)
+            if any(a["type"] == "conflict" for a in actions):
+                conflict_sids.append(sid)
+    stat, bad = _summarize(plan)
+    print(f"  计划: {_fmt_stat(stat)}")
     if args.dry_run:
         print("\n(预览模式, 未写入。去掉 --dry-run 执行。)")
         return SUCCESS
     if bad and not args.force:
-        print("\n(存在冲突未执行。对冲突项加 --force 才会备份后替换。)")
+        print(f"\n(存在 {bad} 项冲突未执行。加 --force 才会备份后替换。)")
+        if conflict_sids:
+            head = ", ".join(conflict_sids[:10])
+            more = f" ...(共 {len(conflict_sids)} 个)" if len(conflict_sids) > 10 else ""
+            print(f"  冲突项: {head}{more}")
         return SUCCESS
-    results = adapters.apply_link(sid, agents, force=args.force)
-    print("\n执行结果:")
-    bad = _print_actions(results)
+    results = adapters.apply_link_batch(sids, agents, force=args.force)
+    stat, bad = _summarize(results)
+    print(f"\n执行结果: {_fmt_stat(stat)}")
     return SUCCESS if bad == 0 else ERROR
 
 
@@ -301,8 +370,12 @@ def main(argv=None) -> int:
     sp.set_defaults(fn=cmd_list)
 
     sp = sub.add_parser("link", help="投影 skill 到 agent (默认 dry-run)")
-    sp.add_argument("skill", help="skill_id 或名称前缀")
+    sp.add_argument("skill", nargs="?",
+                    help="skill_id 或名称前缀 (用 --all/--all-missing 时可省略)")
     sp.add_argument("--agents", required=True, help="目标 agent, 逗号分隔 (pi,codex,opencode,workbuddy,claude,hermes)")
+    sp.add_argument("--all", action="store_true", help="批量: 中央库全部 skill")
+    sp.add_argument("--all-missing", action="store_true",
+                    help="批量: 只投影目标 agent 上尚未投影 (或冲突) 的 skill")
     sp.add_argument("--force", action="store_true", help="冲突时备份后替换")
     sp.add_argument("--dry-run", action="store_true", help="只显示计划")
     sp.set_defaults(fn=cmd_link)

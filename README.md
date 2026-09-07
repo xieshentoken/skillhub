@@ -56,6 +56,10 @@ python3 -m skillhub link dws --agents pi,codex --dry-run   # 预览
 python3 -m skillhub link dws --agents pi,codex              # 无冲突时直接执行
 python3 -m skillhub link dws --agents pi --force            # 冲突时备份后替换
 
+# 批量投影（--all 全部 / --all-missing 只投影尚未投影的）
+python3 -m skillhub link --all --agents workbuddy,codex --dry-run
+python3 -m skillhub link --all-missing --agents workbuddy,codex --force
+
 # 解除投影
 python3 -m skillhub unlink dws --agents pi
 
@@ -110,6 +114,9 @@ python3 -m skillhub mcp generate qcc-company --agents pi --resolve         # 从
 - **导入只复制**：把 agent 的 skill 复制进中央库，原目录分毫不动。
 - **投影可预览**：`link`/`unlink` 加 `--dry-run` 只看计划；执行时遇到冲突（目标已有非本库目录）会拒绝，需显式 `--force`。
 - **每次投影先备份**：`backups/<时间戳>/` 保存 store + index + 被替换的冲突目录，可 `rollback`。
+- **批量只备份一次**：`link --all` / `--all-missing` 在整批开始前做一次全量备份，再让每个 skill 跳过自己的备份。逐个备份会让几百个 skill 重复复制整个 store（实测 196 个 × 59M ≈ 11GB）。
+- **批量遇冲突整批停止**：批量时只要有一项冲突就不写入任何内容，需显式 `--force`；输出会列出冲突项，方便先挑出来单独处理。
+- **copy 模式（workbuddy）重复投影会判为冲突**：copy 产物不像 symlink 那样能被验证指向，再次 `link` 同一 skill 会被当成"已存在的非本库目录"，需 `--force` 备份后替换。
 - **去重**：skill_id = `<name>--<md5前8>`，同名不同内容互不冲突；相同内容合并来源 agent 记录。
 - **MCP 密钥零明文**：中央库 `mcp/index.json` 只存 `{{env:VAR}}` 引用；生成默认也写引用；`--resolve` 注入字面值仅在目标 agent 不支持环境变量展开时使用，且中央库仍保持零明文。
 

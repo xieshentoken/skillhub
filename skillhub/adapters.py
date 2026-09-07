@@ -71,12 +71,17 @@ def plan_link(sid: str, agents: List[str]) -> Dict[str, List[dict]]:
     return plan
 
 
-def apply_link(sid: str, agents: List[str], force: bool = False, backup: bool = True) -> Dict[str, List[dict]]:
-    """执行投影。force=True 时把冲突目标先备份再替换。返回执行结果。"""
+def apply_link(sid: str, agents: List[str], force: bool = False, backup: bool = True,
+               ts: Optional[str] = None) -> Dict[str, List[dict]]:
+    """执行投影。force=True 时把冲突目标先备份再替换。返回执行结果。
+
+    ts: 备份时间戳。批量调用时传入同一个 ts, 让冲突备份落在同一备份点,
+    便于 rollback 时一次性找回。
+    """
     manifest = get_skill(sid)
     if manifest is None:
         raise ValueError(f"中央库中不存在 skill: {sid}")
-    ts = time.strftime("%Y%m%d-%H%M%S")
+    ts = ts or time.strftime("%Y%m%d-%H%M%S")
     if backup:
         _backup_all(ts)
     src = STORE_DIR / sid
@@ -111,6 +116,25 @@ def apply_link(sid: str, agents: List[str], force: bool = False, backup: bool = 
         except Exception as e:  # pragma: no cover
             results[agent] = [{"type": "error", "target": str(target), "detail": str(e)}]
     return results
+
+
+def apply_link_batch(
+    sids: List[str], agents: List[str], force: bool = False
+) -> Dict[str, List[dict]]:
+    """批量执行投影, 整批只做一次全量备份。
+
+    逐个调用 apply_link(backup=True) 会让每个 skill 都触发一次 _backup_all:
+    同一秒内靠幂等跳过, 跨秒则重复复制整个 store。批量场景(几百个 skill)
+    下必须显式只备份一次, 再让每个 skill 跳过自己的备份。
+    """
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    _backup_all(ts)
+    merged: Dict[str, List[dict]] = {}
+    for sid in sids:
+        results = apply_link(sid, agents, force=force, backup=False, ts=ts)
+        for agent, actions in results.items():
+            merged.setdefault(agent, []).extend(actions)
+    return merged
 
 
 def plan_unlink(sid: str, agents: List[str]) -> Dict[str, List[dict]]:

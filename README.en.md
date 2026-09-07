@@ -55,6 +55,10 @@ python3 -m skillhub link dws --agents pi,codex --dry-run   # preview
 python3 -m skillhub link dws --agents pi,codex              # run if no conflicts
 python3 -m skillhub link dws --agents pi --force            # back up and replace on conflict
 
+# Bulk projection (--all everything / --all-missing only unprojected ones)
+python3 -m skillhub link --all --agents workbuddy,codex --dry-run
+python3 -m skillhub link --all-missing --agents workbuddy,codex --force
+
 # Unlink a projection
 python3 -m skillhub unlink dws --agents pi
 
@@ -107,6 +111,9 @@ Rendered target formats:
 - **Import only copies**: skills are copied into the central store; agent source dirs are never touched.
 - **Projections are previewable**: `link`/`unlink` with `--dry-run` shows the plan only; on execution, conflicts (an existing non-store dir at the target) are refused unless `--force`.
 - **Backup before every projection**: `backups/<timestamp>/` saves store + index + replaced conflict dirs, restorable via `rollback`.
+- **Bulk projections back up once**: `link --all` / `--all-missing` take a single full backup before the batch starts, then each skill skips its own backup. Per-skill backups would copy the whole store hundreds of times (measured 196 × 59M ≈ 11GB).
+- **Bulk stops on any conflict**: a batch writes nothing while any conflict exists; add `--force` explicitly. Conflicting skills are listed so they can be handled individually.
+- **Copy mode (workbuddy) re-projection counts as conflict**: a copied artifact cannot be verified as a store projection (unlike a symlink), so re-running `link` on the same skill reports a conflict and needs `--force` to back up and replace.
 - **Dedupe**: skill_id = `<name>--<md5-8>`; same name with different content does not collide; identical content merges source-agent records.
 - **MCP secrets zero plaintext**: the store's `mcp/index.json` only holds `{{env:VAR}}` references; generation also writes references by default; `--resolve` injects literal values only for agents that cannot expand env vars, and the store stays plaintext-free.
 
