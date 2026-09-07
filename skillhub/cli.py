@@ -372,7 +372,8 @@ def main(argv=None) -> int:
     sp = sub.add_parser("link", help="投影 skill 到 agent (默认 dry-run)")
     sp.add_argument("skill", nargs="?",
                     help="skill_id 或名称前缀 (用 --all/--all-missing 时可省略)")
-    sp.add_argument("--agents", required=True, help="目标 agent, 逗号分隔 (pi,codex,opencode,workbuddy,claude,hermes)")
+    sp.add_argument("--agents", required=True,
+                    help="目标 agent, 逗号分隔 (" + ",".join(AGENTS) + ")")
     sp.add_argument("--all", action="store_true", help="批量: 中央库全部 skill")
     sp.add_argument("--all-missing", action="store_true",
                     help="批量: 只投影目标 agent 上尚未投影 (或冲突) 的 skill")

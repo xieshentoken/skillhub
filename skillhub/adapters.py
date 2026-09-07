@@ -1,6 +1,6 @@
 """适配投影 (Adapter Engine) — 把中央库 skill 投影到各 agent 目录。
 
-- symlink 模式: agent_dir/<name> -> store/<skill_id>  (pi/codex/opencode/claude/hermes)
+- symlink 模式: agent_dir/<name> -> store/<skill_id>  (pi/codex/opencode/claude/grok/hermes)
 - copy 模式:    agent_dir/<name>/ 复制一份          (workbuddy)
 - 冲突: 目标已存在且非本库投影 -> 报告冲突, 需 --force 才备份后替换
 - 每次 apply 前整体备份到 backups/<timestamp>/, 可 rollback

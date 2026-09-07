@@ -12,6 +12,7 @@
 生成格式:
   pi        -> ~/.agents/servers/<id>.json      (host-core McpConfig, camelCase)
   codex     -> ~/.codex/config.toml             [[mcp_servers.<id>]] 段
+  grok      -> ~/.grok/config.toml              [[mcp_servers.<id>]] 段 (与 codex 同构, ${VAR})
   workbuddy -> ~/.workbuddy/mcp.json            {"mcpServers": {...}}
   claude    -> ~/.claude.json                   {"mcpServers": {...}}
   opencode  -> ~/.config/opencode/opencode.jsonc  {"mcp": {...}}
@@ -33,6 +34,7 @@ from .config import AGENTS, BACKUP_DIR, MCP_INDEX_FILE, MCP_DIR
 MCP_TARGETS = {
     "pi": ("servers", {"level": "global"}),          # 每个 server 一个文件
     "codex": ("config.toml", {}),
+    "grok": ("config.toml", {}),
     "workbuddy": ("mcp.json", {}),
     "claude": (".claude.json", {}),
     "opencode": ("opencode.jsonc", {}),
@@ -41,6 +43,7 @@ MCP_TARGETS = {
 MCP_TARGET_KEYS = {           # agent -> 写入键 (或特殊模式)
     "pi": "__per_file__",
     "codex": "mcp_servers",
+    "grok": "mcp_servers",
     "workbuddy": "mcpServers",
     "claude": "mcpServers",
     "opencode": "mcp",
@@ -217,22 +220,31 @@ def _render_pi(definition: dict, resolve: Optional[dict] = None) -> dict:
 
 
 def _render_toml(definition: dict, resolve: Optional[dict] = None) -> str:
-    """codex config.toml 的 [[mcp_servers.<id>]] 段。"""
+    """codex/grok config.toml 的 [[mcp_servers.<id>]] 段。
+
+    注意: 子表头 [mcp_servers.<id>.headers|env] 只能出现一次, 多个 key 必须
+    跟在同一个表头下。重复表头会生成非法 TOML (duplicate key), 导致整个
+    config.toml 解析失败。
+    """
     sid = definition["id"]
     lines = [f"[[mcp_servers.{sid}]]"]
     if definition["transport"] == "http":
-        lines.append(f"  url = \"{_render_value(definition['url'], '${VAR}', resolve)}\"")
-        for k, v in (definition.get("headers") or {}).items():
-            lines.append(f"  [mcp_servers.{sid}.headers]")
-            lines.append(f"  {k} = \"{_render_value(v, '${VAR}', resolve)}\"")
+        lines.append(f'url = "{_render_value(definition["url"], "${VAR}", resolve)}"')
+        headers = definition.get("headers") or {}
+        if headers:
+            lines.append(f"[mcp_servers.{sid}.headers]")
+            for k, v in headers.items():
+                lines.append(f'{k} = "{_render_value(v, "${VAR}", resolve)}"')
     else:
-        lines.append(f"  command = \"{definition.get('command')}\"")
+        lines.append(f'command = "{definition.get("command")}"')
         args = definition.get("args") or []
         if args:
-            lines.append("  args = [" + ", ".join(f'"{a}"' for a in args) + "]")
-        for k, v in (definition.get("env") or {}).items():
-            lines.append(f"  [mcp_servers.{sid}.env]")
-            lines.append(f"  {k} = \"{_render_value(v, '${VAR}', resolve)}\"")
+            lines.append("args = [" + ", ".join(f'"{a}"' for a in args) + "]")
+        env = definition.get("env") or {}
+        if env:
+            lines.append(f"[mcp_servers.{sid}.env]")
+            for k, v in env.items():
+                lines.append(f'{k} = "{_render_value(v, "${VAR}", resolve)}"')
     return "\n".join(lines) + "\n"
 
 
@@ -270,9 +282,9 @@ def plan_generate(sid: str, agents: List[str]) -> Dict[str, List[dict]]:
         raise ValueError(f"中央库中不存在 MCP server: {sid}")
     plan: Dict[str, List[dict]] = {}
     for agent in agents:
-        if agent == "hermes":
-            plan[agent] = [{"type": "skip", "target": "hermes",
-                            "detail": "hermes 未发现 MCP 配置支持"}]
+        if agent not in MCP_TARGETS:
+            plan[agent] = [{"type": "skip", "target": str(agent),
+                            "detail": f"{agent} 未发现 MCP 配置支持"}]
             continue
         if agent == "pi":
             target = _pi_server_path(definition["id"])
@@ -343,9 +355,9 @@ def apply_generate(sid: str, agents: List[str], backup: bool = True,
     ts = time.strftime("%Y%m%d-%H%M%S")
     touched: List[Path] = []
     for agent in agents:
-        if agent == "hermes":
-            results[agent] = [{"type": "skip", "target": "hermes",
-                               "detail": "hermes 未发现 MCP 配置支持"}]
+        if agent not in MCP_TARGETS:
+            results[agent] = [{"type": "skip", "target": str(agent),
+                               "detail": f"{agent} 未发现 MCP 配置支持"}]
             continue
         if agent == "pi":
             target = _pi_server_path(definition["id"])
@@ -355,7 +367,7 @@ def apply_generate(sid: str, agents: List[str], backup: bool = True,
             results[agent] = [{"type": "write", "target": str(target),
                                "detail": "pi McpConfig 已写入"}]
             continue
-        if agent == "codex":
+        if MCP_TARGETS[agent][0] == "config.toml":   # codex / grok
             target = _agent_mcp_file(agent)
             if _toml_has_server(target, definition["id"]):
                 results[agent] = [{"type": "skip", "target": str(target),

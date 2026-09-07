@@ -1,6 +1,6 @@
 # AGENTS.md — skillhub
 
-本机多 agent（pi / codex / opencode / workbuddy / claude / hermes）的 **Skill 与 MCP 配置集中管理**。纯 Python 3 标准库实现，零第三方依赖；一个包 `skillhub/` + 一个集成测试 `tests/test_projection.py`。
+本机多 agent（pi / codex / opencode / workbuddy / claude / grok / hermes）的 **Skill 与 MCP 配置集中管理**。纯 Python 3 标准库实现，零第三方依赖；一个包 `skillhub/` + 一个集成测试 `tests/test_projection.py`。
 
 ## 常用命令
 

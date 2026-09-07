@@ -13,6 +13,23 @@ from pathlib import Path
 WS = Path(__file__).resolve().parents[1]
 
 
+# 与 skillhub/scan.py 的扫描规则保持一致: 跟随软链目录、跳过隐藏目录与 node_modules,
+# 并统计嵌套 skill (如 ima-skill/knowledge-base 这类自带子 SKILL.md 的目录)
+SKIP_NAMES = {"node_modules", "__pycache__", ".git", ".venv", "venv"}
+
+
+def count_skills(root: Path) -> int:
+    n = 0
+    for p in sorted(root.iterdir()):
+        if p.name.startswith(".") or p.name in SKIP_NAMES:
+            continue
+        if p.is_dir():
+            if (p / "SKILL.md").exists():
+                n += 1
+            n += count_skills(p)
+    return n
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="skillhub-test-")
     # 复制真实 pi 的 skill 到假目录, 作为唯一的 skill 来源 (导入+投影都指向这里)
@@ -31,7 +48,7 @@ def main():
     # 1) 导入真实 pi 的 skill 到临时中央库 (数量动态计算, 不硬编码)
     r = run("import", "--agent", "pi", "--apply")
     assert r.returncode == 0, r.stderr
-    expected = len([p for p in fake_pi.iterdir() if p.is_dir() and not p.name.startswith(".")])
+    expected = count_skills(fake_pi)
     assert f"已导入 {expected} 个" in r.stdout, r.stdout
     print(f"[OK] import --apply ({expected} skills)")
 

@@ -101,6 +101,7 @@ Rendered target formats:
 |---|---|---|
 | pi | `~/.agents/servers/<id>.json` | one McpConfig file per server |
 | codex | `~/.codex/config.toml` | append `[[mcp_servers.<id>]]` section (skip if exists) |
+| grok | `~/.grok/config.toml` | append `[[mcp_servers.<id>]]` section (same shape as codex) |
 | workbuddy | `~/.workbuddy/mcp.json` | merge into `mcpServers` (original format, no type) |
 | claude | `~/.claude.json` | merge into `mcpServers` (type=http) |
 | opencode | `~/.config/opencode/opencode.jsonc` | merge into `mcp` (type=remote) |
@@ -115,6 +116,7 @@ Rendered target formats:
 - **Bulk stops on any conflict**: a batch writes nothing while any conflict exists; add `--force` explicitly. Conflicting skills are listed so they can be handled individually.
 - **Copy mode (workbuddy) re-projection counts as conflict**: a copied artifact cannot be verified as a store projection (unlike a symlink), so re-running `link` on the same skill reports a conflict and needs `--force` to back up and replace.
 - **Dedupe**: skill_id = `<name>--<md5-8>`; same name with different content does not collide; identical content merges source-agent records.
+- **Scan follows symlinks**: `Path.rglob` does not descend into symlinked directories, and symlink-mode agents (pi / claude / grok) store each skill as a symlink into the central store — plain `rglob` always returns 0 there. `scan` now walks manually (with realpath cycle protection) and skips hidden dirs (e.g. codex's `.system` built-ins) and third-party dirs like `node_modules`.
 - **MCP secrets zero plaintext**: the store's `mcp/index.json` only holds `{{env:VAR}}` references; generation also writes references by default; `--resolve` injects literal values only for agents that cannot expand env vars, and the store stays plaintext-free.
 
 ## Configurable Environment Variables
@@ -133,10 +135,25 @@ Rendered target formats:
 | opencode | `~/.config/opencode/skills` | symlink | |
 | workbuddy | `~/.workbuddy/skills` | copy | for agents that don't trust symlinks |
 | claude | `~/.claude/skills` | symlink | dir doesn't exist by default, created on first link |
+| grok | `~/.grok/skills` | symlink | dir doesn't exist by default; grok also compat-scans `~/.agents/skills` and `~/.claude/skills` |
 | hermes | App Support hermes-home/skills | symlink | categorized layout `<category>/<skill>` |
+
+### Grok compat scanning and precedence (verified on v1.0.13)
+
+Besides `~/.grok/skills` (plus project `./.grok/skills` and `[skills] paths` entries), Grok
+automatically reads `~/.agents/skills`, `~/.claude/skills`, `~/.cursor`, etc.
+(disable per vendor with `[compat.claude] skills = false`). Verified behavior:
+
+- **Same-named skills register once** — no duplicates (the `grok inspect --json` count stays the same).
+- **`~/.grok/skills` wins**: on a name clash it overrides the compat dir, and `inspect` reports
+  `source.path` pointing at it.
+
+So Grok can already read skillhub's pi projection through `~/.agents/skills` without any setup,
+but projecting explicitly into `~/.grok/skills` removes the dependency on pi
+(unlinking pi then no longer affects Grok). Recommended: `skillhub link --all --agents grok`.
 
 ## Tests
 
 ```bash
-python3 tests/test_projection.py   # 13 cases, temp dirs only, never touches the real environment
+python3 tests/test_projection.py   # 12 cases, temp dirs only, never touches the real environment
 ```

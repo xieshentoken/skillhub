@@ -2,7 +2,7 @@
 
 [English](README.en.md) | **简体中文**
 
-集中管理一台机器上多个 agent（pi / codex / opencode / workbuddy / claude / hermes）的 **skill** 与 **MCP 配置**：
+集中管理一台机器上多个 agent（pi / codex / opencode / workbuddy / claude / grok / hermes）的 **skill** 与 **MCP 配置**：
 **一份权威副本在中央库，各 agent 目录只放投影（符号链接或复制）或生成的目标格式片段**。
 
 ## 安装
@@ -118,6 +118,7 @@ python3 -m skillhub mcp generate qcc-company --agents pi --resolve         # 从
 - **批量遇冲突整批停止**：批量时只要有一项冲突就不写入任何内容，需显式 `--force`；输出会列出冲突项，方便先挑出来单独处理。
 - **copy 模式（workbuddy）重复投影会判为冲突**：copy 产物不像 symlink 那样能被验证指向，再次 `link` 同一 skill 会被当成"已存在的非本库目录"，需 `--force` 备份后替换。
 - **去重**：skill_id = `<name>--<md5前8>`，同名不同内容互不冲突；相同内容合并来源 agent 记录。
+- **扫描跟随软链**：`Path.rglob` 不会进入符号链接目录，而 symlink 模式 agent（pi / claude / grok）的 skill 目录本身就是指向中央库的软链，用 rglob 会恒返回 0 条。`scan` 改为手动下钻（用 realpath 集合做环路保护），并跳过隐藏目录（如 codex 的 `.system` 内置技能）与 `node_modules` 等第三方依赖目录。
 - **MCP 密钥零明文**：中央库 `mcp/index.json` 只存 `{{env:VAR}}` 引用；生成默认也写引用；`--resolve` 注入字面值仅在目标 agent 不支持环境变量展开时使用，且中央库仍保持零明文。
 
 ## 可调配置（环境变量）
@@ -136,10 +137,24 @@ python3 -m skillhub mcp generate qcc-company --agents pi --resolve         # 从
 | opencode | `~/.config/opencode/skills` | symlink | |
 | workbuddy | `~/.workbuddy/skills` | copy | 不信任 symlink 的用复制 |
 | claude | `~/.claude/skills` | symlink | 目录默认不存在，首次 link 时创建 |
+| grok | `~/.grok/skills` | symlink | 目录默认不存在；grok 另外还会兼容扫描 `~/.agents/skills`、`~/.claude/skills` |
 | hermes | App Support hermes-home/skills | symlink | 分类层级，按 `<category>/<skill>` 投影 |
+
+### grok 的兼容扫描与优先级（实测 v1.0.13）
+
+grok 除了 `~/.grok/skills`（含项目级 `./.grok/skills`、`[skills] paths` 指定目录）外，
+还会自动读取 `~/.agents/skills`、`~/.claude/skills`、`~/.cursor` 等（可用
+`[compat.claude] skills = false` 关闭）。实测行为：
+
+- **同名 skill 只注册一次**，不会重复出现（`grok inspect --json` 计数不变）。
+- **`~/.grok/skills` 优先**：同名时该目录覆盖兼容目录，`inspect` 的 `source.path` 会指向它。
+
+所以即使不做投影，grok 也能通过 `~/.agents/skills` 读到 skillhub 给 pi 的投影；
+但显式投影到 `~/.grok/skills` 可以摆脱对 pi 的依赖（unlink pi 时 grok 不受影响），
+推荐执行 `skillhub link --all --agents grok`。
 
 ## 测试
 
 ```bash
-python3 tests/test_projection.py   # 13 项，全程用临时目录，不碰真实环境
+python3 tests/test_projection.py   # 12 项，全程用临时目录，不碰真实环境
 ```

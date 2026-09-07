@@ -45,6 +45,13 @@ AGENTS = {
         "skill_dir": HOME / ".claude" / "skills",
         "mode": "symlink",
     },
+    "grok": {
+        # grok 还会兼容读取 ~/.agents/skills 与 ~/.claude/skills (compat 扫描)。
+        # 实测: 同名 skill 只注册一次, ~/.grok/skills 优先覆盖兼容目录。
+        # 显式投影到 ~/.grok/skills 可摆脱对 pi 投影的依赖。
+        "skill_dir": HOME / ".grok" / "skills",
+        "mode": "symlink",
+    },
     "hermes": {
         "skill_dir": HOME / "Library" / "Application Support" / "cn.org.hermesagent.desktop"
                   / "runtime" / "hermes-home" / "skills",
