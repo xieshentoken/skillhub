@@ -26,7 +26,7 @@ Once installed, use the `skillhub` command directly. Without installing, run `py
     store.py               # central store: import, dedupe, index
     adapters.py            # projection engine: link/unlink, conflicts, backup/rollback
     mcp.py                 # MCP config layer: central definitions + per-agent renderers
-    webgui.py              # local web GUI server (read-only, 127.0.0.1 only)
+    webgui.py              # local web GUI server (127.0.0.1; view + link/unlink write endpoints)
     gui.html               # GUI single-page frontend
     cli.py                 # command-line entry point
   tests/test_projection.py # integration tests (temp dirs only, never touches real env)
@@ -82,12 +82,15 @@ python3 -m skillhub gui [--port 8317] [--no-browser]
 `skillhub gui` starts a local web console (opens the browser automatically):
 
 - **Agent overview**: per-agent dir, projection mode (symlink/copy/nested), linked/conflict/unprojected counts with ratio bars, MCP support;
-- **Central store**: search + filter by agent/state/risk; each row shows per-agent projection state as colored dots; click a row for details (manifest, per-agent target paths, file listing);
+- **Central store**: search + filter by agent/state/risk; each row shows per-agent projection state as colored dots; click a row for details (manifest, per-agent target paths, file listing) and **run link / unlink right there** (same backup and conflict protection as the CLI);
 - **MCP servers**: central definitions (transport, target, env/header variable names, agents);
-- **Backups**: snapshot sizes and whether replaced conflict dirs are included.
+- **Backups**: snapshot sizes and whether replaced conflict dirs are included;
+- **Sortable columns + CSV export**: click a column header to sort; export the current filtered view as CSV;
+- **Auto refresh**: opt-in periodic refresh, handy when mixing GUI and CLI operations.
 
-Safety: **read-only** — binds `127.0.0.1` only, GET only, no write operations;
-projection/import/generation remain CLI-only. The GUI reads the same `~/.skillhub`
+Safety: binds `127.0.0.1` only, no auth, never exposed beyond localhost; write operations
+are limited to two POST endpoints (`/api/link`, `/api/unlink`); everything else is read-only;
+the risk gate (see below) applies in the GUI too. The GUI reads the same `~/.skillhub`
 data as the CLI; hit refresh for the latest state.
 
 ## MCP Configuration Layer
@@ -129,10 +132,12 @@ Rendered target formats:
 
 - **Import only copies**: skills are copied into the central store; agent source dirs are never touched.
 - **Projections are previewable**: `link`/`unlink` with `--dry-run` shows the plan only; on execution, conflicts (an existing non-store dir at the target) are refused unless `--force`.
-- **Backup before every projection**: `backups/<timestamp>/` saves store + index + replaced conflict dirs, restorable via `rollback`.
+- **Backup before every projection**: `backups/<timestamp>/` saves store + index + replaced conflict dirs, restorable via `rollback`; backup files are **hardlink-deduped** against the store (treated as immutable), so many snapshots cost a fraction of full copies; auto-pruning keeps the latest `SKILLHUB_MAX_BACKUPS` (default 10).
 - **Bulk projections back up once**: `link --all` / `--all-missing` take a single full backup before the batch starts, then each skill skips its own backup. Per-skill backups would copy the whole store hundreds of times (measured 196 × 59M ≈ 11GB).
-- **Bulk stops on any conflict**: a batch writes nothing while any conflict exists; add `--force` explicitly. Conflicting skills are listed so they can be handled individually.
-- **Copy mode (workbuddy) re-projection counts as conflict**: a copied artifact cannot be verified as a store projection (unlike a symlink), so re-running `link` on the same skill reports a conflict and needs `--force` to back up and replace.
+- **Bulk stops on any conflict / or skips**: a batch writes nothing while any conflict exists; add `--force` explicitly, or use `--skip-conflicts` to skip conflicted items and continue with the rest — the output lists conflicts and skipped items separately.
+- **Copy-mode artifacts carry a marker**: a `.skillhub-projection.json` marker (sid + md5) is written inside copy projections, so re-running `link` recognizes "this is our copy" and skips idempotently instead of misreporting a conflict; only a tampered/missing marker is treated as a conflict.
+- **Broken-link detection**: once a symlink projection's store source is deleted, `status` honestly reports `broken` (instead of lying "linked"), and `doctor` lists all broken projections with fix suggestions (re-link or unlink).
+- **Risk gate**: skills flagged high-risk (default pattern: docs/scripts containing `sudo`; tunable via `SKILLHUB_RISK_GATE`) are blocked at link time unless `--force` is given; blocked items are flagged in `status`/`doctor`/GUI.
 - **Dedupe**: skill_id = `<name>--<md5-8>`; same name with different content does not collide; identical content merges source-agent records.
 - **Scan follows symlinks**: `Path.rglob` does not descend into symlinked directories, and symlink-mode agents (pi / claude / grok) store each skill as a symlink into the central store — plain `rglob` always returns 0 there. `scan` now walks manually (with realpath cycle protection) and skips hidden dirs (e.g. codex's `.system` built-ins) and third-party dirs like `node_modules`.
 - **MCP secrets zero plaintext**: the store's `mcp/index.json` only holds `{{env:VAR}}` references; generation also writes references by default; `--resolve` injects literal values only for agents that cannot expand env vars, and the store stays plaintext-free.
@@ -143,6 +148,8 @@ Rendered target formats:
 - `SKILLHUB_AGENT_DIR_<agent>`: override an agent's skill dir (testing/custom)
 - `SKILLHUB_MCP_FILE_<agent>`: override an agent's MCP config file (testing)
 - `SKILLHUB_MCP_PI_DIR`: override pi's servers dir (testing)
+- `SKILLHUB_RISK_GATE`: risk-gate keywords (comma-separated), default `sudo`
+- `SKILLHUB_MAX_BACKUPS`: number of backups to keep, default `10`
 
 ## Agent Adapters
 

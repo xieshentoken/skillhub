@@ -1,10 +1,10 @@
-"""本地 Web GUI (只读) — 浏览 agent 接入状态 / 中央库 / MCP / 备份。
+"""本地 Web GUI — 浏览 agent 接入状态 / 中央库 / MCP / 备份, 并可执行投影操作。
 
 启动: skillhub gui [--port 8317] [--no-browser]
-- 只绑定 127.0.0.1, 只实现 GET, 不提供任何写操作 (投影/导入仍走 CLI)。
-- 数据接口:
-    GET /api/data        一次性返回概览数据 (agents + skills + mcp + backups)
-    GET /api/skill/<sid> 单个 skill 详情 (manifest + store 文件清单 + 各 agent 投影目标)
+- 只绑定 127.0.0.1。
+- 只读接口: GET /api/data, GET /api/skill/<sid>
+- 写接口:   POST /api/link, POST /api/unlink (JSON body: {sid, agents, force, dry_run})
+  写操作走 adapters 的正常备份/冲突/风险门禁逻辑, 与 CLI 完全一致。
 """
 from __future__ import annotations
 
@@ -214,6 +214,47 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json({"error": f"{type(e).__name__}: {e}"}, 500)
             except Exception:
                 pass
+
+    def do_POST(self):
+        """写操作: 仅 /api/link 与 /api/unlink, 仅接受 JSON body。
+
+        每次调用都会走 adapters 的正常备份/冲突/门禁逻辑, 与 CLI 完全一致。
+        """
+        path = urlparse(self.path).path
+        try:
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            body = json.loads(self.rfile.read(n) or b"{}") if n else {}
+        except Exception:
+            self._json({"error": "请求体不是合法 JSON"}, 400)
+            return
+        sid = str(body.get("sid", ""))
+        agents = [a for a in (body.get("agents") or []) if a in AGENTS]
+        force = bool(body.get("force"))
+        dry = bool(body.get("dry_run"))
+        if not sid or not agents:
+            self._json({"error": "需要 sid 与 agents"}, 400)
+            return
+        if sid not in store.load_index():
+            self._json({"error": f"中央库中不存在 skill: {sid}"}, 404)
+            return
+        try:
+            if path == "/api/link":
+                if dry:
+                    out = adapters.plan_link(sid, agents, force=force)
+                else:
+                    out = adapters.apply_link(sid, agents, force=force)
+            elif path == "/api/unlink":
+                if dry:
+                    out = adapters.plan_unlink(sid, agents)
+                else:
+                    out = adapters.apply_unlink(sid, agents)
+            else:
+                self._json({"error": "not found"}, 404)
+                return
+        except Exception as e:
+            self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+            return
+        self._json({"actions": out})
 
 
 def serve(port: int = DEFAULT_PORT, open_browser: bool = True) -> None:

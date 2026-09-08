@@ -175,6 +175,161 @@ def _import_from_source(source: str, path: str, servers: dict,
     return imported, definitions, seen_env, seen_mask
 
 
+def _toml_scalar(v: str):
+    v = v.strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        return v[1:-1]
+    if v.startswith("[") and v.endswith("]"):
+        inner = v[1:-1]
+        return [x.strip().strip("\"'") for x in inner.split(",") if x.strip()]
+    if v.startswith("{") and v.endswith("}"):
+        out = {}
+        for part in v[1:-1].split(","):
+            if "=" in part:
+                k, val = part.split("=", 1)
+                out[k.strip().strip("\"'")] = val.strip().strip("\"'")
+        return out
+    if v in ("true", "false"):
+        return v == "true"
+    return v
+
+
+def _parse_mcp_servers_toml(text: str) -> Dict[str, dict]:
+    """极简 TOML 解析: 只处理 [[mcp_servers.X]] 与其子表, 避免依赖 tomllib (py3.9 无)。"""
+    servers: Dict[str, dict] = {}
+    cur = None
+    sub = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[["):
+            name = line[2:line.rfind("]]")].strip()
+            cur = name[len("mcp_servers."):] if name.startswith("mcp_servers.") else None
+            if cur:
+                servers.setdefault(cur, {})
+            sub = None
+            continue
+        if line.startswith("["):
+            name = line[1:line.rfind("]")].strip()
+            sub = None
+            if cur and name.startswith(f"mcp_servers.{cur}."):
+                sub = name.rsplit(".", 1)[-1]
+                servers[cur].setdefault(sub, {})
+            continue
+        if cur is None or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        val = _toml_scalar(v)
+        if sub:
+            servers[cur][sub][k] = val
+        else:
+            servers[cur][k] = val
+    return servers
+
+
+def _strip_jsonc(text: str) -> str:
+    """去掉 // 与 /* */ 注释, 并清理尾逗号 (opencode 用 jsonc)。"""
+    out = []
+    i, n = 0, len(text)
+    in_str = esc = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str = True
+            out.append(c)
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    return re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+
+
+def import_from_agent(agent: str, apply: bool = False):
+    """从任意受支持 agent 的现有 MCP 配置反向导入到中央库。
+
+    支持 workbuddy (mcp.json) / claude (.claude.json) / opencode (jsonc) /
+    codex 与 grok (config.toml 的 [[mcp_servers.X]] 段)。
+    """
+    if agent == "workbuddy":
+        return import_from_workbuddy(apply=apply)
+    if agent not in MCP_TARGETS:
+        raise ValueError(f"{agent} 未发现 MCP 配置支持")
+    path = _agent_mcp_file(agent)
+    if not path.exists():
+        raise FileNotFoundError(f"找不到 {path}")
+    kind = MCP_TARGETS[agent][0]
+    if kind == "config.toml":
+        servers = _parse_mcp_servers_toml(path.read_text(encoding="utf-8"))
+    else:
+        raw = path.read_text(encoding="utf-8")
+        if kind == "opencode.jsonc":
+            raw = _strip_jsonc(raw)
+        data = json.loads(raw)
+        servers = data.get(MCP_TARGET_KEYS[agent]) or {}
+    return _import_from_source(agent, str(path), servers, apply)
+
+
+def agent_has_server(agent: str, sid: str) -> bool:
+    """某 agent 的现有配置里是否已存在该 server。"""
+    try:
+        if agent == "pi":
+            return _pi_server_path(sid).exists()
+        if agent not in MCP_TARGETS:
+            return False
+        path = _agent_mcp_file(agent)
+        if not path.exists():
+            return False
+        kind = MCP_TARGETS[agent][0]
+        if kind == "config.toml":
+            return sid in _parse_mcp_servers_toml(path.read_text(encoding="utf-8"))
+        raw = path.read_text(encoding="utf-8")
+        if kind == "opencode.jsonc":
+            raw = _strip_jsonc(raw)
+        data = json.loads(raw)
+        return sid in (data.get(MCP_TARGET_KEYS[agent]) or {})
+    except Exception:
+        return False
+
+
+def status() -> dict:
+    """各 agent 配置与中央库的对齐情况。"""
+    servers = list_servers()
+    rows = []
+    missing = 0
+    for s in servers:
+        row = {"id": s["id"], "transport": s.get("transport", ""), "agents": {}}
+        for a in AGENTS:
+            if a in MCP_TARGETS:
+                row["agents"][a] = agent_has_server(a, s["id"])
+        if not any(row["agents"].values()):
+            missing += 1
+        rows.append(row)
+    return {"servers": rows,
+            "summary": {"total": len(servers), "not_in_any_agent": missing}}
+
+
 def list_servers() -> List[dict]:
     index = load_index()
     return sorted(index.values(), key=lambda d: d.get("id", ""))

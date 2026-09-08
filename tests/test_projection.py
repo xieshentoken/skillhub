@@ -2,6 +2,7 @@
 
 用法: python3 tests/test_projection.py
 """
+import json
 import os
 import shutil
 import subprocess
@@ -32,13 +33,25 @@ def count_skills(root: Path) -> int:
 
 def main():
     tmp = tempfile.mkdtemp(prefix="skillhub-test-")
-    # 复制真实 pi 的 skill 到假目录, 作为唯一的 skill 来源 (导入+投影都指向这里)
+    # 复制真实 pi 的 skill 到假目录, 作为唯一的 skill 来源 (导入+投影都指向这里)。
+    # 若本机没有 (~/.agents/skills, 如 CI), 造两个最小 skill 兜底, 保证测试可独立运行。
     real_pi = Path.home() / ".agents" / "skills"
     fake_pi = Path(tmp) / "fake-pi-skills"
-    shutil.copytree(real_pi, fake_pi)
+    if real_pi.is_dir():
+        shutil.copytree(real_pi, fake_pi)
+    else:
+        for name, desc in (("dws", "Demo skill for projection tests"),
+                           ("demo-second", "Another demo skill")):
+            d = fake_pi / name
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(
+                f"---\nname: {name}\ndescription: {desc}\n---\n# {name}\n",
+                encoding="utf-8")
     env = dict(os.environ)
     env["SKILLHUB_HOME"] = str(Path(tmp) / "hub")
     env["SKILLHUB_AGENT_DIR_pi"] = str(fake_pi)
+    env["SKILLHUB_AGENT_DIR_workbuddy"] = str(Path(tmp) / "fake-wb")
+    env["SKILLHUB_AGENT_DIR_claude"] = str(Path(tmp) / "fake-cl")
 
     def run(*args):
         r = subprocess.run([sys.executable, "-m", "skillhub", *args], cwd=WS,
@@ -65,7 +78,7 @@ def main():
     # 4) 无 --force 执行: 应拒绝且不删除原目录
     r = run("link", "dws", "--agents", "pi")
     assert r.returncode == 0
-    assert "冲突未执行" in r.stdout, r.stdout
+    assert "未执行" in r.stdout, r.stdout
     assert (target / "keep.txt").exists()
     print("[OK] link without --force refuses")
 
@@ -103,8 +116,9 @@ def main():
     print("[OK] rollback rejects unknown backup")
 
     # 11) 真实备份名 rollback 可执行
-    r = run("backups")
-    ts = r.stdout.strip().split()[-1]
+    r = run("backups", "--json")
+    bks = json.loads(r.stdout)["backups"]
+    ts = bks[-1]["ts"]
     r = run("rollback", ts)
     assert r.returncode == 0, r.stdout + r.stderr
     print("[OK] rollback to existing backup")
@@ -119,6 +133,42 @@ def main():
     r = run("list")
     assert "dws" in r.stdout
     print("[OK] list shows skills")
+
+    # 14) --json: list 可被脚本消费
+    r = run("list", "--json")
+    data = json.loads(r.stdout)
+    assert data["count"] >= 1 and any(s["name"] == "dws" for s in data["skills"])
+    print("[OK] list --json")
+
+    # 15) copy 模式: 写投影标记, 重复 link 判 skip 而非冲突
+    fake_wb = Path(env["SKILLHUB_AGENT_DIR_workbuddy"])
+    r = run("link", "dws", "--agents", "workbuddy", "--force")
+    assert r.returncode == 0, r.stdout + r.stderr
+    marker = fake_wb / "dws" / ".skillhub-projection.json"
+    assert marker.is_file(), "copy projection should carry marker"
+    r = run("link", "dws", "--agents", "workbuddy")
+    assert "skip" in r.stdout, r.stdout
+    print("[OK] copy marker makes re-link idempotent")
+
+    # 16) 风险门禁: 含 sudo 的 skill 默认拦截, --force 放行
+    risky = fake_pi / "risky-demo"
+    risky.mkdir(exist_ok=True)
+    (risky / "SKILL.md").write_text(
+        "---\nname: risky-demo\ndescription: contains sudo\n---\nrun `sudo rm -rf /tmp/x`\n",
+        encoding="utf-8")
+    r = run("import", "--agent", "pi", "--apply")
+    r = run("link", "risky-demo", "--agents", "claude")
+    assert "blocked" in r.stdout, r.stdout
+    assert not (Path(env["SKILLHUB_AGENT_DIR_claude"]) / "risky-demo").exists()
+    r = run("link", "risky-demo", "--agents", "claude", "--force")
+    assert (Path(env["SKILLHUB_AGENT_DIR_claude"]) / "risky-demo").is_symlink()
+    print("[OK] risk gate blocks sudo unless --force")
+
+    # 17) doctor: json 可解析且含 summary
+    r = run("doctor", "--json")
+    rep = json.loads(r.stdout)
+    assert "summary" in rep and "broken" in rep["summary"]
+    print("[OK] doctor --json")
 
     shutil.rmtree(tmp)
     print("\n=== 全部通过 ===")

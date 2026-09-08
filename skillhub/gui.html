@@ -95,6 +95,8 @@
   <div class="chips" id="chips"></div>
   <div class="spacer"></div>
   <span style="font-size:12px;color:var(--dim)" id="genat"></span>
+  <label class="ck"><input type="checkbox" id="autoRefresh"> 15s 自动刷新</label>
+  <button onclick="exportCsv()">导出 CSV</button>
   <button onclick="load()">↻ 刷新</button>
 </header>
 <div class="paths" id="paths"></div>
@@ -138,7 +140,7 @@
 <script>
 const AGENT_COLORS={pi:"#a78bfa",codex:"#34d399",opencode:"#fbbf24",workbuddy:"#38bdf8",claude:"#f472b6",grok:"#22d3ee",hermes:"#a3e635"};
 const STATE_LABEL={linked:"已投影",conflict:"冲突",not_linked:"未投影"};
-let DATA=null, TAB="ov";
+let DATA=null, TAB="ov", SORT={key:null,dir:1};
 
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtSize=n=>n<0?"":n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
@@ -189,8 +191,10 @@ function renderOverview(){
       <div class="meta">${dirOk} ${mcp} <span class="badge">中央库 ${a.total_in_store} 个</span></div>
     </div>`;
   }).join("")+`</div>
-  <p class="note"><b>说明:</b> 已投影 = agent 目录里的条目是指向中央库的软链(symlink 模式)或由本库复制(copy 模式时以存在为准);
-  冲突 = 目标路径已有非本库内容, 需 <span class="mono">--force</span> 处理; 写操作请用 CLI (<span class="mono">skillhub link / unlink / import</span>), 本 GUI 只读。</p>`;
+  <p class="note"><b>说明:</b> 已投影 = agent 目录里的条目是指向中央库的软链(symlink 模式)或经标记验证的 copy;
+  冲突 = 目标已有非本库内容, 需 --force; broken = 指向本库但中央库副本已缺失。
+  写操作: 在中央库详情里可对单个 agent 执行 投影/解除 (走与 CLI 相同的备份与门禁逻辑);
+  批量与导入仍用 CLI (<span class="mono">skillhub link / import</span>)。</p>`;
 }
 
 /* ---------- skills ---------- */
@@ -210,25 +214,47 @@ function renderSkillTable(){
   const q=document.getElementById("q").value.trim().toLowerCase();
   const fa=document.getElementById("fAgent").value, fs=document.getElementById("fState").value;
   const fr=document.getElementById("fRisk").checked;
-  const rows=DATA.skills.filter(s=>{
+  let rows=DATA.skills.filter(s=>{
     if(fr&&!s.risks.length)return false;
     if(fs){ if(fa){ if(s.states[fa]!==fs)return false } else if(!Object.values(s.states).includes(fs))return false }
     if(fa&&!fs&&s.states[fa]===undefined)return false;
     if(q&&!((s.name+" "+s.desc+" "+s.id+" "+s.category).toLowerCase().includes(q)))return false;
     return true;
   });
+  if(SORT.key){
+    const k=SORT.key, d=SORT.dir;
+    rows=[...rows].sort((a,b)=>{
+      let va,vb;
+      if(k==="risks"){va=a.risks.length;vb=b.risks.length}
+      else if(k==="size"){va=a.size||0;vb=b.size||0}
+      else{va=(a[k]||"").toLowerCase();vb=(b[k]||"").toLowerCase();return va<vb?-d:va>vb?d:0}
+      return (va-vb)*d;
+    });
+  }
+  const caret=k=>SORT.key===k?(SORT.dir>0?" ▲":" ▼"):"";
   document.getElementById("skCount").textContent=`${rows.length} / ${DATA.skills.length} 个 skill`;
   document.getElementById("skTable").innerHTML=
-   `<table><thead><tr><th>名称</th><th>分类</th><th>描述</th><th>风险</th><th>来源 agent</th><th>投影状态</th></tr></thead><tbody>`+
+   `<table><thead><tr>
+      <th onclick="setSort('name')" style="cursor:pointer">名称${caret("name")}</th>
+      <th onclick="setSort('category')" style="cursor:pointer">分类${caret("category")}</th>
+      <th>描述</th>
+      <th onclick="setSort('risks')" style="cursor:pointer">风险${caret("risks")}</th>
+      <th onclick="setSort('size')" style="cursor:pointer">大小${caret("size")}</th>
+      <th>来源 agent</th><th>投影状态</th></tr></thead><tbody>`+
    rows.map(s=>`<tr onclick="openSkill('${esc(s.id)}')">
      <td class="mono">${esc(s.name)}</td>
      <td style="color:var(--dim)">${esc(s.category)||"—"}</td>
      <td class="desc" title="${esc(s.desc)}">${esc(s.desc)||"—"}</td>
      <td>${s.risks.length?s.risks.map(r=>`<span class="risk">${esc(r)}</span>`).join(""):`<span class="risk none">无</span>`}</td>
+     <td class="mono">${fmtSize(s.size||0)}</td>
      <td>${s.source_agents.map(a=>`<span style="color:${color(a)};font-size:12px">${esc(a)}</span>`).join(" ")}</td>
      <td>${DATA.agents.map(a=>{const st=s.states[a.name];
-        return st?`<span class="sdot s-${st}" title="${a.name}: ${STATE_LABEL[st]}"></span>`:""}).join("")}</td>
+        return st?`<span class="sdot s-${st}" title="${a.name}: ${STATE_LABEL[st]||st}"></span>`:""}).join("")}</td>
    </tr>`).join("")+`</tbody></table>`;
+}
+function setSort(k){
+  if(SORT.key===k)SORT.dir*=-1; else SORT={key:k,dir:1};
+  renderSkillTable();
 }
 
 /* ---------- skill 详情抽屉 ---------- */
@@ -253,12 +279,20 @@ async function openSkill(sid){
       <dt>来源</dt><dd>${(m.sources||[]).map(s=>`${esc(s.agent)} <span class="mono" style="color:var(--dim)">${esc(s.path)}</span>`).join("<br>")}</dd>
       <dt>中央库</dt><dd class="mono" style="color:var(--dim)">${esc(d.store_dir)}</dd>
     </dl>
-    <div class="sect">各 agent 投影映射</div>
+    <div class="sect">各 agent 投影映射 (可操作)</div>
     ${DATA.agents.map(a=>{const p=d.projections[a.name];
+      const st=p.state;
+      const isOurs=(st==="linked"||st==="copy"||st==="broken");
+      const act=isOurs?"unlink":"link";
+      const needF=(act==="link"&&st==="conflict");
+      const lbl=isOurs?"解除":(needF?"投影(替换)":"投影");
       return `<div class="projline">
-        <span class="sdot s-${p.state}" title="${STATE_LABEL[p.state]}"></span>
+        <span class="sdot s-${st}" title="${STATE_LABEL[st]||st}"></span>
         <span style="color:${color(a.name)};width:86px;flex:none">${esc(a.name)}</span>
-        <span class="mono">${esc(p.target)}</span></div>`}).join("")}
+        <span class="mono" style="flex:1">${esc(p.target)}</span>
+        <button style="padding:2px 10px;font-size:12px"
+                onclick="proj('${esc(sid)}','${a.name}','${st}')">${lbl}</button></div>`}).join("")}
+    <p class="note">投影走正常备份/冲突/风险门禁流程; 冲突项会先确认再备份替换; broken 需先修复中央库。</p>
     <div class="sect">中央库文件 (${d.files.length})</div>
     <div class="filelist">${d.files.map(f=>`<div><span>${esc(f.path)}</span><span>${fmtSize(f.size)}</span></div>`).join("")||"空"}</div>`;
 }
@@ -267,6 +301,58 @@ function closeDrawer(){
   document.getElementById("mask").classList.remove("show");
 }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer()});
+
+/* ---------- 写操作: 投影 / 解除 ---------- */
+async function proj(sid, agent, state){
+  const isOurs=["linked","copy","broken"].includes(state);
+  const act=isOurs?"unlink":"link";
+  let force=false;
+  if(act==="unlink" && !confirm(`解除 ${agent} 上的投影?\n(只移除投影, 不动中央库副本)`)) return;
+  if(act==="link" && state==="conflict" &&
+     !confirm(`${agent} 上已有非本库内容, 将先备份到 backups/ 再替换, 继续?`)) return;
+  if(act==="link" && state==="broken"){
+    alert("中央库副本已缺失 (悬空链接), 请先 import 或 rollback 修复中央库。");
+    return;
+  }
+  const r=await fetch("/api/"+act,{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({sid, agents:[agent], force})
+  });
+  const d=await r.json();
+  if(d.error){alert("失败: "+d.error);return}
+  const acts=(d.actions&&d.actions[agent])||[];
+  const bad=acts.filter(a=>["error","conflict","blocked","broken"].includes(a.type));
+  if(bad.length)alert("未完成: "+bad.map(a=>a.detail).join("; "));
+  await load();
+  openSkill(sid);
+}
+
+/* ---------- 自动刷新 ---------- */
+let refreshTimer=null;
+document.getElementById("autoRefresh").addEventListener("change",e=>{
+  if(e.target.checked){
+    refreshTimer=setInterval(()=>{ if(!document.hidden) load(); },15000);
+  }else if(refreshTimer){
+    clearInterval(refreshTimer); refreshTimer=null;
+  }
+});
+
+/* ---------- CSV 导出 ---------- */
+function exportCsv(){
+  const agents=DATA.agents.map(a=>a.name);
+  const head=["id","name","category","risks","source_agents",...agents.map(a=>a+"_state")];
+  const lines=[head.join(",")];
+  DATA.skills.forEach(s=>{
+    const row=[s.id,s.name,s.category,s.risks.join("|"),s.source_agents.join("|"),
+               ...agents.map(a=>s.states[a.name]||"")];
+    lines.push(row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(","));
+  });
+  const blob=new Blob(["\ufeff"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="skillhub-skills.csv";
+  a.click();
+}
 
 /* ---------- MCP ---------- */
 function renderMcp(){

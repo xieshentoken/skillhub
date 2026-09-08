@@ -67,6 +67,11 @@ for _agent, _cfg in AGENTS.items():
 
 MANIFEST_NAME = "manifest.json"
 
+# ---- 风险门禁 ----
+# 命中这些风险标记的 skill 默认禁止投影, 需显式 --force 才放行。
+# 用环境变量覆盖: SKILLHUB_RISK_GATE="sudo,env_secrets" 或 "" 关闭门禁。
+RISK_GATE = [r.strip() for r in os.environ.get("SKILLHUB_RISK_GATE", "sudo").split(",") if r.strip()]
+
 RISK_PATTERNS = {
     "exec_shell": r"```(bash|sh|shell|zsh)",
     "network": r"(curl|wget|http://|https://|urllib|requests\.(get|post))",
