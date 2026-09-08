@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from .config import AGENTS, RISK_PATTERNS
+from .store import file_summary, skill_files
 
 
 def _md5(p: Path) -> str:
@@ -38,6 +39,17 @@ def _read_frontmatter(p: Path) -> Dict[str, str]:
 
 def _risks(txt: str) -> List[str]:
     return [k for k, pat in RISK_PATTERNS.items() if re.search(pat, txt)]
+
+
+def risks_for_skill(root: Path) -> List[str]:
+    """Scan the complete validated file set for risk markers."""
+    chunks = []
+    for item in skill_files(root):
+        try:
+            chunks.append(item.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, UnicodeError):
+            continue
+    return _risks("\n".join(chunks))
 
 
 # 下钻时跳过的目录: 隐藏目录 (如 codex 的 .system 内置技能) 与第三方依赖目录
@@ -98,19 +110,25 @@ def scan_agent(agent: str) -> List[dict]:
             name, category = md.parent.name, ""
         meta = _read_frontmatter(md)
         try:
-            txt = md.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            txt = ""
+            summary = file_summary(md.parent)
+        except (OSError, ValueError) as exc:
+            # 扫描不跟随 skill 包内部软链接，避免把外部机密带入导入计划。
+            # 将问题作为记录错误交给 CLI 显示，而不是悄悄缩小文件集。
+            records.append({"agent": agent, "name": name, "category": category,
+                            "path": str(md), "error": str(exc), "risks": []})
+            continue
         records.append({
             "agent": agent,
             "name": name,
             "category": category,
             "path": str(md),
-            "md5": _md5(md),
-            "size": md.stat().st_size,
+            "md5": summary["md5"],
+            "size": summary["size"],
+            "file_count": summary["file_count"],
+            "files": summary["files"],
             "fm_name": meta.get("name", ""),
             "fm_desc": (meta.get("description", "") or "")[:60],
-            "risks": _risks(txt),
+            "risks": risks_for_skill(md.parent),
         })
     return records
 

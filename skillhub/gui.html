@@ -65,6 +65,7 @@
   .risk.none{background:transparent;color:var(--dim);border-color:var(--line)}
   .sdot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;cursor:default}
   .s-linked{background:var(--green)} .s-conflict{background:var(--amber)} .s-not_linked{background:var(--gray)}
+  .s-broken,.s-copy_broken,.s-copy_drift,.s-store_drift{background:var(--red)}
   .desc{color:var(--muted);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* 抽屉 */
   #drawer{position:fixed;top:0;right:-560px;width:560px;max-width:94vw;height:100vh;z-index:50;
@@ -87,6 +88,17 @@
   .empty{color:var(--dim);text-align:center;padding:40px 0}
   .note{font-size:12px;color:var(--dim);margin-top:10px}
   .note b{color:var(--muted)}
+  .formrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  .formrow input,.formrow textarea{background:var(--bg);border:1px solid var(--line2);color:var(--text);border-radius:6px;padding:6px 8px}
+  .formrow textarea{width:100%;min-height:180px;font:12px var(--mono)}
+  .choice-grid,.group-members{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .choice-grid{max-height:150px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:7px;background:var(--bg)}
+  .choice-item{padding:2px 5px;border-radius:5px}
+  .choice-item:hover{background:var(--panel)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .danger{color:#fca5a5}.success{color:#86efac}
+  .diag-list{display:grid;gap:5px;margin:7px 0}
+  .smallbtn{padding:3px 8px;font-size:12px}
 </style>
 </head>
 <body>
@@ -96,8 +108,8 @@
   <div class="spacer"></div>
   <span style="font-size:12px;color:var(--dim)" id="genat"></span>
   <label class="ck"><input type="checkbox" id="autoRefresh"> 15s 自动刷新</label>
-  <button onclick="exportCsv()">导出 CSV</button>
-  <button onclick="load()">↻ 刷新</button>
+  <button id="exportCsv">导出 CSV</button>
+  <button id="refresh">↻ 刷新</button>
 </header>
 <div class="paths" id="paths"></div>
 <nav id="tabs">
@@ -105,6 +117,8 @@
   <button data-t="sk">中央库 Skills</button>
   <button data-t="mc">MCP Servers</button>
   <button data-t="bk">备份</button>
+  <button data-t="mt">导入 / 分组 / 分发</button>
+  <button data-t="lg">日志 / 设置 / 模型</button>
 </nav>
 <main>
   <section id="tab-ov"></section>
@@ -115,7 +129,11 @@
       <select id="fState">
         <option value="">任意状态</option>
         <option value="linked">已投影</option>
+        <option value="trial">试用 UL</option>
         <option value="conflict">冲突</option>
+        <option value="broken">断链</option>
+        <option value="store_drift">中央库漂移</option>
+        <option value="copy_drift">copy 漂移</option>
         <option value="not_linked">未投影</option>
       </select>
       <label class="ck"><input type="checkbox" id="fRisk"> 仅看有风险的</label>
@@ -129,26 +147,36 @@
   </section>
   <section id="tab-mc" hidden></section>
   <section id="tab-bk" hidden></section>
+  <section id="tab-mt" hidden></section>
+  <section id="tab-lg" hidden></section>
 </main>
 
-<div id="mask" onclick="closeDrawer()"></div>
+<div id="mask"></div>
 <div id="drawer">
-  <div class="dhead"><h2 id="dTitle"></h2><button onclick="closeDrawer()">✕ 关闭</button></div>
+  <div class="dhead"><h2 id="dTitle"></h2><button id="closeDrawer">✕ 关闭</button></div>
   <div class="dbody" id="dBody"></div>
 </div>
 
 <script>
 const AGENT_COLORS={pi:"#a78bfa",codex:"#34d399",opencode:"#fbbf24",workbuddy:"#38bdf8",claude:"#f472b6",grok:"#22d3ee",hermes:"#a3e635"};
-const STATE_LABEL={linked:"已投影",conflict:"冲突",not_linked:"未投影"};
-let DATA=null, TAB="ov", SORT={key:null,dir:1};
+const STATE_LABEL={linked:"已投影",trial:"试用 UL",conflict:"冲突",not_linked:"未投影",broken:"断链",copy_broken:"copy 断链",copy_drift:"copy 漂移",store_drift:"中央库漂移"};
+let DATA=null, TAB="ov", SORT={key:null,dir:1}, MODEL_SUGGESTIONS=[];
+let DIST_SELECTION_DIRTY=false, DIST_SELECTION_CONFLICT=false;
 
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtSize=n=>n<0?"":n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
 const color=a=>AGENT_COLORS[a]||"#94a3b8";
 
 async function load(){
-  const r=await fetch("/api/data"); DATA=await r.json();
-  renderChips(); renderOverview(); renderSkills(); renderMcp(); renderBackups();
+  try{
+    const r=await fetch("/api/data");
+    const d=await r.json();
+    if(!r.ok||d.error)throw new Error(d.error||("HTTP "+r.status));
+    DATA=d;
+    renderChips(); renderOverview(); renderSkills(); renderMcp(); renderBackups(); renderMaintenance(); renderLogs();
+  }catch(err){
+    document.getElementById("tab-ov").innerHTML=`<p class="empty">加载失败: ${esc(err.message)}</p>`;
+  }
 }
 
 /* ---------- header ---------- */
@@ -183,6 +211,7 @@ function renderOverview(){
         <span style="color:var(--green)"><b>${a.linked}</b>已投影</span>
         <span style="color:var(--amber)"><b>${a.conflict}</b>冲突</span>
         <span style="color:var(--muted)"><b>${a.not_linked}</b>未投影</span>
+        <span style="color:var(--red)"><b>${a.store_drift}</b>中央库漂移</span>
       </div>
       <div class="bar">
         <i style="width:${pct(a.linked)};background:var(--green)"></i>
@@ -192,7 +221,7 @@ function renderOverview(){
     </div>`;
   }).join("")+`</div>
   <p class="note"><b>说明:</b> 已投影 = agent 目录里的条目是指向中央库的软链(symlink 模式)或经标记验证的 copy;
-  冲突 = 目标已有非本库内容, 需 --force; broken = 指向本库但中央库副本已缺失。
+  冲突 = 目标已有非本库内容, 需 --force; broken = 指向本库但中央库副本已缺失；中央库漂移需先修复或重新导入。
   写操作: 在中央库详情里可对单个 agent 执行 投影/解除 (走与 CLI 相同的备份与门禁逻辑);
   批量与导入仍用 CLI (<span class="mono">skillhub link / import</span>)。</p>`;
 }
@@ -235,13 +264,13 @@ function renderSkillTable(){
   document.getElementById("skCount").textContent=`${rows.length} / ${DATA.skills.length} 个 skill`;
   document.getElementById("skTable").innerHTML=
    `<table><thead><tr>
-      <th onclick="setSort('name')" style="cursor:pointer">名称${caret("name")}</th>
-      <th onclick="setSort('category')" style="cursor:pointer">分类${caret("category")}</th>
+      <th data-sort="name" style="cursor:pointer">名称${caret("name")}</th>
+      <th data-sort="category" style="cursor:pointer">分类${caret("category")}</th>
       <th>描述</th>
-      <th onclick="setSort('risks')" style="cursor:pointer">风险${caret("risks")}</th>
-      <th onclick="setSort('size')" style="cursor:pointer">大小${caret("size")}</th>
+      <th data-sort="risks" style="cursor:pointer">风险${caret("risks")}</th>
+      <th data-sort="size" style="cursor:pointer">大小${caret("size")}</th>
       <th>来源 agent</th><th>投影状态</th></tr></thead><tbody>`+
-   rows.map(s=>`<tr onclick="openSkill('${esc(s.id)}')">
+   rows.map(s=>`<tr data-sid="${esc(s.id)}">
      <td class="mono">${esc(s.name)}</td>
      <td style="color:var(--dim)">${esc(s.category)||"—"}</td>
      <td class="desc" title="${esc(s.desc)}">${esc(s.desc)||"—"}</td>
@@ -264,9 +293,15 @@ async function openSkill(sid){
   document.getElementById("dTitle").textContent=sid;
   const body=document.getElementById("dBody");
   body.innerHTML=`<p class="empty">加载中…</p>`;
-  const r=await fetch("/api/skill/"+encodeURIComponent(sid));
-  const d=await r.json();
-  if(d.error){body.innerHTML=`<p class="empty">${esc(d.error)}</p>`;return}
+  try{
+    const r=await fetch("/api/skill/"+encodeURIComponent(sid));
+    const d=await r.json();
+    if(!r.ok||d.error)throw new Error(d.error||("HTTP "+r.status));
+    renderSkillDrawer(sid,d);
+  }catch(err){body.innerHTML=`<p class="empty">加载失败: ${esc(err.message)}</p>`}
+}
+function renderSkillDrawer(sid,d){
+  const body=document.getElementById("dBody");
   const m=d.manifest;
   body.innerHTML=`
     <dl class="kv">
@@ -291,40 +326,98 @@ async function openSkill(sid){
         <span style="color:${color(a.name)};width:86px;flex:none">${esc(a.name)}</span>
         <span class="mono" style="flex:1">${esc(p.target)}</span>
         <button style="padding:2px 10px;font-size:12px"
-                onclick="proj('${esc(sid)}','${a.name}','${st}')">${lbl}</button></div>`}).join("")}
+                data-proj-sid="${esc(sid)}" data-proj-agent="${esc(a.name)}" data-proj-state="${esc(st)}">${lbl}</button></div>`}).join("")}
     <p class="note">投影走正常备份/冲突/风险门禁流程; 冲突项会先确认再备份替换; broken 需先修复中央库。</p>
+    <div class="sect">版本与维护</div>
+    <div class="formrow">
+      ${m.channel==="ul"?`<button class="smallbtn" data-refresh-ul-sid="${esc(sid)}">刷新外部编辑摘要</button><button class="smallbtn" data-publish-sid="${esc(sid)}">预览并发布为正式版</button>`:`<button class="smallbtn" data-create-ul-sid="${esc(sid)}">创建独立 ul 试用版</button>`}
+      ${(m.ul_sid||m.formal_sid)?`<button class="smallbtn" data-diff-sid="${esc(sid)}" data-diff-with="${esc(m.channel==="ul"?m.formal_sid:m.ul_sid)}">查看版本差异</button>`:""}
+      <input id="rename-${esc(sid)}" placeholder="新名称" value="${esc(m.name)}" style="max-width:190px">
+      <button class="smallbtn" data-rename-sid="${esc(sid)}">预览改名</button>
+    </div>
+    ${m.channel==="ul"?`<p class="note">ul 是独立副本，只能编辑文本文件；保存或外部编辑后刷新会重算完整摘要和 content id。明文外部编辑完成后先刷新，再发布。</p>`:
+      `<p class="note">正式版可创建一个独立 ul；正式版与 ul 的关系只保留各一个。</p>`}
+    ${m.channel==="formal"&&m.ul_sid?`<div class="formrow"><span>试用 agent：</span>${DATA.agents.map(a=>`<label class="ck"><input type="checkbox" data-trial-agent="${esc(a.name)}" ${((m.trial_agents||[]).includes(a.name)?"checked":"")}>${esc(a.name)}</label>`).join("")}<button class="smallbtn" data-trial-sid="${esc(sid)}">预览切换</button></div>`:""}
+    <div class="sect">依赖诊断</div>
+    <div id="diag-${esc(sid)}" class="note">加载诊断中…</div>
+    <div class="formrow"><input id="dep-tools-${esc(sid)}" placeholder="必需工具：ffmpeg,git" value="${esc((m.dependencies?.tools||[]).join(","))}"><input id="dep-env-${esc(sid)}" placeholder="必需环境变量：TOKEN" value="${esc((m.dependencies?.env||[]).join(","))}"><button class="smallbtn" data-save-deps-sid="${esc(sid)}">预览保存依赖声明</button></div>
     <div class="sect">中央库文件 (${d.files.length})</div>
-    <div class="filelist">${d.files.map(f=>`<div><span>${esc(f.path)}</span><span>${fmtSize(f.size)}</span></div>`).join("")||"空"}</div>`;
+    <div class="filelist">${d.files.map(f=>`<div><button class="smallbtn" data-file-sid="${esc(sid)}" data-file-path="${esc(f.path)}">${esc(f.path)}</button><span>${fmtSize(f.size)}</span></div>`).join("")||"空"}</div>`;
+  loadDiagnosis(sid);
 }
 function closeDrawer(){
   document.getElementById("drawer").classList.remove("open");
   document.getElementById("mask").classList.remove("show");
 }
+async function postPreviewThenApply(url,payload,label){
+  const preview=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,apply:false})});
+  const pd=await preview.json();
+  if(!preview.ok||pd.error)throw new Error(pd.error||"预览失败");
+  if(!confirm(`${label}\n\n${JSON.stringify(pd,null,2).slice(0,1800)}\n\n确认执行？`))return null;
+  const applied=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,apply:true,confirm:true})});
+  const ad=await applied.json();
+  if(!applied.ok||ad.error)throw new Error(ad.error||"执行失败");
+  return ad;
+}
+async function loadDiagnosis(sid){
+  const el=document.getElementById("diag-"+sid); if(!el)return;
+  try{
+    const r=await fetch("/api/skill/"+encodeURIComponent(sid)+"/diagnose"); const d=await r.json();
+    const missing=d.missing||[], manual=d.needs_manual||[];
+    const items=[...missing,...manual];
+    const blocked=items.length?`<span class="danger">发布阻断：${items.map(x=>esc((x.kind||"")+":"+(x.name||""))+" "+esc(x.status)).join("、")}</span>`:`<span class="success">未发现静态缺项</span>`;
+    const missingHtml=missing.length?`<div class="note">缺失项不能在 GUI 中伪造为已满足，请先补齐后重新诊断。</div>`:"";
+    const manualHtml=manual.length?`<div class="note">选择本次确实核验过的待验证项（可部分确认）：</div>
+      <div class="diag-list">${manual.map(x=>{const key=(x.kind||"")+":"+(x.name||"");return `<label class="ck"><input type="checkbox" data-diag-sid="${esc(sid)}" data-diag-key="${esc(key)}">${esc(key)} <span class="note">${esc(x.source||x.certainty||x.status||"")}</span></label>`}).join("")}</div>
+      <div class="formrow"><input id="diag-note-${esc(sid)}" placeholder="本次核验备注（可选）" style="min-width:260px"><button class="smallbtn" data-diag-confirm-sid="${esc(sid)}">确认选中项</button></div>`:"";
+    el.innerHTML=blocked+missingHtml+manualHtml;
+  }catch(err){el.textContent="诊断失败: "+err.message}
+}
+async function openSkillFile(sid,path){
+  try{
+    const r=await fetch("/api/skill/"+encodeURIComponent(sid)+"/file?path="+encodeURIComponent(path)); const d=await r.json();
+    if(!r.ok||d.error)throw new Error(d.error||"读取失败");
+    const body=document.getElementById("dBody");
+    body.innerHTML=`<div class="sect">编辑 ${esc(path)}（${esc(d.channel)}）</div>
+      <textarea id="editorText">${esc(d.text)}</textarea>
+      <div class="formrow"><button data-save-file-sid="${esc(sid)}" data-save-file-path="${esc(path)}">明确保存</button>
+      <button data-open-editor-sid="${esc(sid)}" data-open-editor-path="${esc(path)}">打开外部编辑器</button><button data-back-sid="${esc(sid)}">返回详情</button></div>
+      <p class="note">仅 ul、已验证本地路径；保存先预览，确认后才写入。</p>`;
+  }catch(err){alert("读取失败: "+err.message)}
+}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer()});
 
 /* ---------- 写操作: 投影 / 解除 ---------- */
 async function proj(sid, agent, state){
-  const isOurs=["linked","copy","broken"].includes(state);
+  const isOurs=["linked","broken","copy_broken"].includes(state);
   const act=isOurs?"unlink":"link";
   let force=false;
   if(act==="unlink" && !confirm(`解除 ${agent} 上的投影?\n(只移除投影, 不动中央库副本)`)) return;
   if(act==="link" && state==="conflict" &&
      !confirm(`${agent} 上已有非本库内容, 将先备份到 backups/ 再替换, 继续?`)) return;
-  if(act==="link" && state==="broken"){
+  if(act==="link" && state==="conflict") force=true;
+  if(act==="link" && state==="copy_drift" &&
+     !confirm(`${agent} 上的 copy 已被修改, 将备份后替换, 继续?`)) return;
+  if(act==="link" && state==="copy_drift") force=true;
+  if(act==="link" && ["broken","copy_broken"].includes(state)){
     alert("中央库副本已缺失 (悬空链接), 请先 import 或 rollback 修复中央库。");
     return;
   }
-  const r=await fetch("/api/"+act,{
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({sid, agents:[agent], force})
-  });
-  const d=await r.json();
-  if(d.error){alert("失败: "+d.error);return}
-  const acts=(d.actions&&d.actions[agent])||[];
-  const bad=acts.filter(a=>["error","conflict","blocked","broken"].includes(a.type));
-  if(bad.length)alert("未完成: "+bad.map(a=>a.detail).join("; "));
-  await load();
-  openSkill(sid);
+  if(state==="store_drift"){
+    alert("中央库副本与索引摘要不一致，请先恢复或重新导入中央库。");
+    return;
+  }
+  try{
+    const r=await fetch("/api/"+act,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({sid, agents:[agent], force, apply:true})});
+    const d=await r.json();
+    if(!r.ok||d.error)throw new Error(d.error||("HTTP "+r.status));
+    const acts=(d.actions&&d.actions[agent])||[];
+    const bad=acts.filter(a=>["error","conflict","copy_drift","store_drift","blocked","broken"].includes(a.type));
+    if(bad.length)alert("未完成: "+bad.map(a=>a.detail).join("; "));
+    await load();
+    openSkill(sid);
+  }catch(err){alert("失败: "+err.message)}
 }
 
 /* ---------- 自动刷新 ---------- */
@@ -335,6 +428,74 @@ document.getElementById("autoRefresh").addEventListener("change",e=>{
   }else if(refreshTimer){
     clearInterval(refreshTimer); refreshTimer=null;
   }
+});
+
+/* ---------- 安全事件绑定 ---------- */
+document.getElementById("refresh").addEventListener("click",load);
+document.getElementById("exportCsv").addEventListener("click",exportCsv);
+document.getElementById("mask").addEventListener("click",closeDrawer);
+document.getElementById("closeDrawer").addEventListener("click",closeDrawer);
+document.getElementById("skTable").addEventListener("click",e=>{
+  const header=e.target.closest("[data-sort]");
+  if(header){setSort(header.dataset.sort);return}
+  const row=e.target.closest("[data-sid]");
+  if(row)openSkill(row.dataset.sid);
+});
+document.getElementById("dBody").addEventListener("click",e=>{
+  const button=e.target.closest("[data-proj-sid]");
+  if(button){proj(button.dataset.projSid,button.dataset.projAgent,button.dataset.projState);return}
+  const file=e.target.closest("[data-file-sid]");
+  if(file){openSkillFile(file.dataset.fileSid,file.dataset.filePath);return}
+  const diff=e.target.closest("[data-diff-sid]");
+  if(diff){(async()=>{try{const r=await fetch("/api/skill/"+encodeURIComponent(diff.dataset.diffSid)+"/diff?with="+encodeURIComponent(diff.dataset.diffWith));const d=await r.json();if(!r.ok||d.error)throw new Error(d.error||"差异失败");const body=document.getElementById("dBody");body.innerHTML=`<div class="sect">${esc(d.left)} ↔ ${esc(d.right)} 文件差异</div><pre class="filelist">${esc((d.changes||[]).map(x=>x.path+" ["+x.kind+"]\n"+(x.diff||"")).join("\n"))}</pre><button data-back-sid="${esc(diff.dataset.diffSid)}">返回详情</button>`}catch(err){alert(err.message)}})();return}
+  const save=e.target.closest("[data-save-file-sid]");
+  if(save){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/edit",{sid:save.dataset.saveFileSid,path:save.dataset.saveFilePath,text:document.getElementById("editorText").value},"保存 ul 文件");if(ad){await load();openSkill(save.dataset.saveFileSid)}}catch(err){alert(err.message)}})();return}
+  const ext=e.target.closest("[data-open-editor-sid]");
+  if(ext){(async()=>{try{const ad=await postPreviewThenApply("/api/editor/open",{sid:ext.dataset.openEditorSid,path:ext.dataset.openEditorPath},"打开外部编辑器");if(ad)alert("已打开："+ad.path)}catch(err){alert(err.message)}})();return}
+  const back=e.target.closest("[data-back-sid]");
+  if(back){openSkill(back.dataset.backSid);return}
+  const create=e.target.closest("[data-create-ul-sid]");
+  if(create){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/create-ul",{sid:create.dataset.createUlSid},"创建独立 ul");if(ad){await load();openSkill(ad.ul_sid||create.dataset.createUlSid)}}catch(err){alert(err.message)}})();return}
+  const refreshUl=e.target.closest("[data-refresh-ul-sid]");
+  if(refreshUl){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/refresh",{sid:refreshUl.dataset.refreshUlSid},"刷新外部编辑后的 ul 摘要");if(ad){await load();openSkill(ad.sid||refreshUl.dataset.refreshUlSid)}}catch(err){alert(err.message)}})();return}
+  const publish=e.target.closest("[data-publish-sid]");
+  if(publish){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/publish",{sid:publish.dataset.publishSid},"发布 ul 为正式版");if(ad){await load();openSkill(ad.new_formal_sid||publish.dataset.publishSid)}}catch(err){alert(err.message)}})();return}
+  const rename=e.target.closest("[data-rename-sid]");
+  if(rename){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/rename",{sid:rename.dataset.renameSid,name:document.getElementById("rename-"+rename.dataset.renameSid).value},"改名并保留来源");if(ad){await load();openSkill(ad.sid)}}catch(err){alert(err.message)}})();return}
+  const trial=e.target.closest("[data-trial-sid]");
+  if(trial){(async()=>{try{const agents=[...document.querySelectorAll("[data-trial-agent]:checked")].map(x=>x.dataset.trialAgent);const ad=await postPreviewThenApply("/api/skill/trial",{sid:trial.dataset.trialSid,agents,enable:true},"切换试用 agent");if(ad){await load();openSkill(trial.dataset.trialSid)}}catch(err){alert(err.message)}})();return}
+  const confirmDiag=e.target.closest("[data-diag-confirm-sid]");
+  if(confirmDiag){(async()=>{try{const sid=confirmDiag.dataset.diagConfirmSid;const keys=[...document.querySelectorAll("[data-diag-key]:checked")].filter(x=>x.dataset.diagSid===sid).map(x=>x.dataset.diagKey);if(!keys.length){alert("请先选择实际核验过的待验证项");return}const note=(document.getElementById("diag-note-"+sid)||{}).value||"";const ad=await postPreviewThenApply("/api/diagnose/confirm",{sid,keys,note},"记录选中的人工诊断确认");if(ad)loadDiagnosis(sid)}catch(err){alert(err.message)}})();return}
+  const deps=e.target.closest("[data-save-deps-sid]");
+  if(deps){(async()=>{try{const sid=deps.dataset.saveDepsSid;const tools=document.getElementById("dep-tools-"+sid).value.split(",").map(x=>x.trim()).filter(Boolean);const env=document.getElementById("dep-env-"+sid).value.split(",").map(x=>x.trim()).filter(Boolean);const ad=await postPreviewThenApply("/api/diagnose/dependencies",{sid,dependencies:{tools,env}},"保存显式依赖声明");if(ad){await load();openSkill(sid)}}catch(err){alert(err.message)}})();return}
+});
+document.getElementById("tab-mc").addEventListener("click",e=>{
+  const imp=e.target.closest("[data-mcp-import]");
+  if(imp){(async()=>{try{const source=document.getElementById("mcpImportSource").value;const ad=await postPreviewThenApply("/api/mcp/import",{source},"导入 MCP 定义");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const save=e.target.closest("[data-mcp-save]");
+  if(save){(async()=>{try{
+    const row=save.closest("[data-mcp-row]"); const field=name=>row.querySelector(`[data-mcp-field="${name}"]`);
+    const s=DATA.mcp_servers.find(item=>item.id===save.dataset.mcpSave); const changes={label:field("label").value,enabled:field("enabled").checked};
+    if(s.transport==="http")changes.url=field("url").value;
+    else {changes.command=field("command").value;changes.args=field("args").value.split("\n").map(x=>x.trim()).filter(Boolean)}
+    const refs=(name,label)=>{const output={};for(const line of field(name).value.split("\n")){const value=line.trim();if(!value)continue;const pos=value.indexOf("=");if(pos<1)throw new Error(label+" 必须使用 NAME=环境引用格式");const key=value.slice(0,pos).trim(), ref=value.slice(pos+1).trim();if(!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(key)||!/^(?:\{\{env:[A-Za-z_][A-Za-z0-9_]*\}\}|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\{env:[A-Za-z_][A-Za-z0-9_]*\}|Bearer\s+\{\{env:[A-Za-z_][A-Za-z0-9_]*\}\})$/.test(ref))throw new Error(label+" 只能填写完整的环境变量引用");output[key]=ref}return output};
+    const env=refs("env_refs","环境引用"), headers=refs("header_refs","请求头引用"); if(Object.keys(env).length)changes.env_refs=env;if(Object.keys(headers).length)changes.header_refs=headers;
+    const ad=await postPreviewThenApply("/api/mcp/edit",{sid:save.dataset.mcpSave,changes},"保存 MCP 字段");if(ad)load();
+  }catch(err){alert(err.message)}})();return}
+  const gen=e.target.closest("[data-mcp-generate]");
+  if(gen){const row=gen.closest("[data-mcp-row]");const agents=[...row.querySelectorAll("[data-mcp-target]:checked")].map(x=>x.dataset.agent);if(!agents.length){alert("请先选择至少一个目标 agent");return}(async()=>{try{const ad=await postPreviewThenApply("/api/mcp/generate",{sid:gen.dataset.mcpGenerate,agents},"生成 MCP 配置");if(ad)load()}catch(err){alert(err.message)}})()}
+});
+document.getElementById("tab-bk").addEventListener("click",e=>{
+  const restore=e.target.closest("[data-trash-restore]");
+  if(restore){(async()=>{try{const ad=await postPreviewThenApply("/api/trash/restore",{entry:restore.dataset.trashRestore},"恢复单个 skill 回收项");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const retain=e.target.closest("[data-trash-retain]");
+  if(retain){(async()=>{try{const retained=retain.dataset.trashRetained==="true";const ad=await postPreviewThenApply("/api/trash/retain",{entry:retain.dataset.trashRetain,retained},retained?"手动保留回收项":"取消回收项保留");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const cleanup=e.target.closest("[data-trash-cleanup]");
+  if(cleanup){(async()=>{try{const ad=await postPreviewThenApply("/api/trash/cleanup",{confirm:true},"清理已到期且未保留的回收项");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const backupRollback=e.target.closest("[data-backup-rollback]");
+  if(backupRollback){(async()=>{try{const ad=await postPreviewThenApply("/api/backups/rollback",{ts:backupRollback.dataset.backupRollback},"恢复选中的中央库备份快照");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const backupCleanup=e.target.closest("[data-backup-cleanup]");
+  if(backupCleanup){(async()=>{try{const keep=Number(document.getElementById("backupKeep").value);if(!Number.isInteger(keep)||keep<1){alert("保留份数必须是正整数");return}const ad=await postPreviewThenApply("/api/backups/cleanup",{keep},"清理旧备份快照");if(ad)load()}catch(err){alert(err.message)}})();return}
 });
 
 /* ---------- CSV 导出 ---------- */
@@ -355,43 +516,186 @@ function exportCsv(){
 }
 
 /* ---------- MCP ---------- */
+function mcpRefLines(value){
+  return Object.entries(value||{}).map(([key,item])=>key+"="+item).join("\n");
+}
 function renderMcp(){
   const el=document.getElementById("tab-mc");
   const rows=DATA.mcp_servers;
-  el.innerHTML=rows.length?
-   `<table><thead><tr><th>id</th><th>transport</th><th>目标</th><th>env / headers</th><th>agents</th><th>启用</th></tr></thead><tbody>`+
-   rows.map(s=>`<tr style="cursor:default">
-     <td class="mono"><b>${esc(s.id)}</b>${s.label?`<div style="color:var(--dim);font-size:11px">${esc(s.label)}</div>`:""}</td>
-     <td><span class="badge">${esc(s.transport)}</span></td>
-     <td class="mono" style="max-width:340px;word-break:break-all">${esc(s.url||[s.command,...(s.args||[])].join(" "))||"—"}</td>
-     <td>${(s.env_keys||[]).map(k=>`<span class="risk" style="background:rgba(79,140,255,.1);color:#93c5fd;border-color:rgba(79,140,255,.3)">env:${esc(k)}</span>`).join(" ")}
-         ${(s.header_keys||[]).map(k=>`<span class="risk" style="background:rgba(163,230,53,.08);color:#d9f99d;border-color:rgba(163,230,53,.25)">hdr:${esc(k)}</span>`).join(" ")||"-"}</td>
-     <td>${(s.agents||[]).map(a=>`<span style="color:${color(a)};font-size:12px">${esc(a)}</span>`).join(" ")||"—"}</td>
-     <td>${s.enabled?`<span class="badge ok">启用</span>`:`<span class="badge">停用</span>`}</td>
-   </tr>`).join("")+`</tbody></table>
-   <p class="note">生成/导入请用 CLI: <span class="mono">skillhub mcp import|list|generate</span>。密钥在中央库只存 <span class="mono">{{env:VAR}}</span> 引用, 这里只显示变量名。</p>`
-   :`<p class="empty">中央库还没有 MCP server 定义。用 <span class="mono">skillhub mcp import --apply</span> 从 workbuddy 导入。</p>`;
+  const sources=DATA.agents.filter(a=>a.mcp_supported&&a.name!=="pi");
+  const targets=DATA.agents.filter(a=>a.mcp_supported);
+  const sourceList=sources.length?sources:[{name:"workbuddy"}];
+  const preferredSource=sourceList.find(a=>a.name==="workbuddy")||sourceList[0];
+  const sourceOptions=sourceList.map(a=>`<option value="${esc(a.name)}" ${a.name===preferredSource.name?"selected":""}>${esc(a.name)}</option>`).join("");
+  const importPanel=`<div class="panel"><h3>导入 MCP 定义</h3>
+    <div class="formrow"><label>来源 agent <select id="mcpImportSource">${sourceOptions}</select></label>
+      <button data-mcp-import>预览导入</button></div>
+    <p class="note">只读取所选 agent 的现有配置；解析失败会停止，不覆盖中央库。</p></div>`;
+  const serverPanels=rows.map(s=>`<div class="panel mcp-row" data-mcp-row="${esc(s.id)}">
+    <div class="formrow"><b class="mono">${esc(s.id)}</b><span class="badge">${esc(s.transport)}</span>
+      ${s.agents?.map(a=>`<span style="color:${color(a)};font-size:12px">来源:${esc(a)}</span>`).join(" ")||""}
+      <span class="spacer"></span><label class="ck"><input type="checkbox" data-mcp-field="enabled" ${s.enabled?"checked":""}>启用</label></div>
+    <div class="formrow"><label>标签 <input type="text" data-mcp-field="label" value="${esc(s.label||"")}" style="max-width:220px"></label>
+      ${s.transport==="http"?`<label style="flex:1;min-width:260px">URL <input type="text" data-mcp-field="url" value="${esc(s.url||"")}" style="width:100%"></label>`:
+        `<label>命令 <input type="text" data-mcp-field="command" value="${esc(s.command||"")}" style="min-width:220px"></label>`}</div>
+    ${s.transport==="stdio"?`<label style="display:block">参数（每行一个）<textarea data-mcp-field="args" style="width:100%;min-height:70px;font:12px var(--mono)">${esc((s.args||[]).join("\n"))}</textarea></label>`:""}
+    <div class="formrow"><label style="flex:1;min-width:220px">环境引用（每行 <span class="mono">NAME={{env:VAR}}</span>）<textarea data-mcp-field="env_refs" style="width:100%;min-height:70px;font:12px var(--mono)">${esc(mcpRefLines(s.env_refs))}</textarea></label>
+      <label style="flex:1;min-width:220px">请求头引用（每行 <span class="mono">Header={{env:VAR}}</span>）<textarea data-mcp-field="header_refs" style="width:100%;min-height:70px;font:12px var(--mono)">${esc(mcpRefLines(s.header_refs))}</textarea></label></div>
+    <div class="formrow"><span>生成目标：</span>${targets.map(a=>`<label class="ck"><input type="checkbox" data-mcp-target data-agent="${esc(a.name)}" ${((s.agents||[]).includes(a.name)?"checked":"")}>${esc(a.name)}</label>`).join("")||"<span class=note>没有可用目标 agent</span>"}
+      <button class="smallbtn" data-mcp-save="${esc(s.id)}">预览保存字段</button><button class="smallbtn" data-mcp-generate="${esc(s.id)}">预览生成</button></div>
+    <p class="note">明文密钥不会回显；这里只能追加/更新环境变量引用。保存与生成都需要预览后确认。</p>
+  </div>`).join("");
+  el.innerHTML=importPanel+(serverPanels||`<p class="empty">中央库还没有 MCP server 定义。</p>`);
 }
 
 /* ---------- 备份 ---------- */
 function renderBackups(){
   const el=document.getElementById("tab-bk");
-  el.innerHTML=DATA.backups.length?
-   `<table><thead><tr><th>时间戳</th><th>大小</th><th>内容</th></tr></thead><tbody>`+
-   DATA.backups.map(b=>`<tr style="cursor:default">
-     <td class="mono"><b>${esc(b.ts)}</b></td><td>${fmtSize(b.size)}</td>
-     <td>${b.has_conflicts?`<span class="risk">含被替换的冲突目录</span>`:`<span class="badge">store + index 快照</span>`}</td>
-   </tr>`).join("")+`</tbody></table>
-   <p class="note">回滚用 CLI: <span class="mono">skillhub rollback &lt;ts&gt;</span>; 清理旧备份: <span class="mono">skillhub cleanup [--keep 3]</span>。备份目录 <span class="mono">${esc(DATA.paths.backups)}</span></p>`
-   :`<p class="empty">还没有备份。</p>`;
+  const trash=DATA.trash||[];
+  const backupRows=(DATA.backups||[]).map(b=>{
+    const recovery=b.kind==="skill_publish"?`<span class="note">发布备份：旧正式版已在下方单 skill 回收区，可用“恢复”；不使用全库恢复。</span>`:
+      b.complete?`<button class="smallbtn" data-backup-rollback="${esc(b.ts)}">预览恢复此快照</button>`:`<span class="note">快照不完整，不可恢复</span>`;
+    return `<tr style="cursor:default"><td class="mono"><b>${esc(b.ts)}</b><div class="note">${esc(b.kind||"unknown")}</div></td><td>${fmtSize(b.size)}</td>
+      <td>${b.has_conflicts?`<span class="risk">含被替换的冲突目录</span>`:`<span class="badge">可验证</span>`}</td><td>${recovery}</td></tr>`;
+  }).join("");
+  const trashHtml=`<div class="sect">单 skill 回收区（默认保留 ${esc(DATA.settings?.trash_retention_days||7)} 天）</div>`+
+    (trash.length?`<table><thead><tr><th>回收项</th><th>skill</th><th>原因</th><th>截止</th><th>操作</th></tr></thead><tbody>`+
+      trash.map(t=>`<tr><td class="mono">${esc(t.id)}</td><td>${esc(t.name||t.sid||"")}</td><td>${esc(t.reason||"")}${t.retained?` <span class="badge ok">已保留</span>`:""}</td><td>${esc(t.retain_until||t.error||"")}</td><td>${t.valid?`<button class="smallbtn" data-trash-restore="${esc(t.id)}">恢复</button><button class="smallbtn" data-trash-retain="${esc(t.id)}" data-trash-retained="${t.retained?"false":"true"}">${t.retained?"取消保留":"保留"}</button>`:"不可验证"}</td></tr>`).join("")+`</tbody></table>`:`<p class="note">回收区为空。</p>`)+
+    `<div class="formrow"><button data-trash-cleanup>预览并清理到期项</button></div>`;
+  el.innerHTML=`<div class="panel"><h3>备份快照</h3>${backupRows?`<table><thead><tr><th>时间戳</th><th>大小</th><th>内容</th><th>恢复</th></tr></thead><tbody>${backupRows}</tbody></table>`:`<p class="empty">还没有备份。</p>`}
+    <div class="formrow"><label>保留最近 <input id="backupKeep" type="number" min="1" max="10000" value="3" style="width:80px"> 份</label><button data-backup-cleanup>预览清理旧备份</button></div>
+    <p class="note">标准快照可在此恢复；发布快照只用于定位下方对应的单 skill 回收项。备份目录 <span class="mono">${esc(DATA.paths.backups)}</span></p></div>
+    <div class="panel">${trashHtml}</div>`;
 }
+
+/* ---------- 导入 / 分组 / 分发 ---------- */
+function renderMaintenance(){
+  const el=document.getElementById("tab-mt");
+  const sourceRows=(DATA.sources||[]).map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.agent)}</td><td class="mono">${esc(s.path)}</td><td>${s.error?`<span class="danger">${esc(s.error)}</span>`:`<button class="smallbtn" data-import-agent="${esc(s.agent)}" data-import-path="${esc(s.path)}">预览导入</button>`}</td></tr>`).join("");
+  const groups=Object.entries(DATA.groups||{});
+  const skillChoices=(selector)=>DATA.skills.map(s=>`<label class="ck choice-item" draggable="true" data-drag-sid="${esc(s.id)}" data-search="${esc((s.name+" "+s.desc).toLowerCase())}"><input type="checkbox" ${selector(s)}>${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("");
+  const groupRows=groups.map(([gid,g])=>`<div class="panel group-editor" data-group-editor="${esc(gid)}" data-drop-group="${esc(gid)}">
+    <div class="formrow"><input type="text" data-group-name value="${esc(g.name||gid)}" style="max-width:240px"><span class="badge">${esc(g.kind||"manual")}</span><span class="note">内部关系已保存，成员可在下方调整</span><button class="smallbtn" data-save-group="${esc(gid)}">预览保存分组</button><button class="smallbtn" data-delete-group="${esc(gid)}">预览删除</button></div>
+    <div class="group-members">${DATA.skills.map(s=>`<label class="ck"><input type="checkbox" data-group-member data-group-id="${esc(gid)}" data-sid="${esc(s.id)}" ${(g.members||[]).includes(s.id)?"checked":""}>${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("")||`<span class="note">暂无 skill</span>`}</div>
+    <div class="note">已保存成员：${(g.members||[]).map(s=>esc((DATA.skills.find(x=>x.id===s)||{}).name||s)).join("、")||"空组"}。取消勾选即可移出成员，也可改名后保存。</div>
+  </div>`).join("")||`<p class="note">暂无分组。先用名称创建一个分组。</p>`;
+  const distGroupChoices=groups.map(([gid,g])=>`<label class="ck choice-item" data-search="${esc((g.name||gid).toLowerCase())}"><input type="checkbox" data-dist-group="${esc(gid)}">${esc(g.name||gid)} <span class="note">已保存 ${(g.members||[]).length} 个 skill</span></label>`).join("")||`<span class="note">暂无分组</span>`;
+  const distSkillChoices=DATA.skills.map(s=>`<label class="ck choice-item" data-search="${esc((s.name+" "+s.desc).toLowerCase())}"><input type="checkbox" data-dist-sid="${esc(s.id)}">${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("")||`<span class="note">暂无 skill</span>`;
+  el.innerHTML=`<div class="panel"><h3>来源与同名版本</h3><p class="note">来源来自可发现的 agent 目录；同名不同摘要会共存，可先导入、再在 Skills 详情中比较/改名。导入写入前会先预览。</p><table><thead><tr><th>名称</th><th>来源</th><th>路径</th><th>操作</th></tr></thead><tbody>${sourceRows||`<tr><td colspan="4">没有可导入来源</td></tr>`}</tbody></table></div>
+  <div class="panel"><h3>分组</h3><div class="formrow"><input id="groupName" placeholder="新分组名称"><button data-create-group>用勾选 skill 创建分组</button></div><div class="formrow"><input id="createSkillSearch" placeholder="搜索要加入新分组的 skill"><div id="createSkillChoices" class="choice-grid">${skillChoices(s=>`data-create-group-sid="${esc(s.id)}"`)}</div></div>${groupRows}</div>
+  <div class="panel"><h3>分发（仅在明确确认后写 agent）</h3><p class="note">按名称选择已保存分组或单个 skill；不需要记住 group id / skill id。来源选择会按 agent 保存，选择 agent 后自动回填。分组成员变化不会自动写 agent，下一次预览会按当前分组成员和仍保存的单个 skill 重新计算。</p><div class="formrow"><input id="distGroupSearch" placeholder="搜索分组名称"><div id="distGroupChoices" class="choice-grid">${distGroupChoices}</div></div><div id="distGroupSelected" class="note">已选分组：无</div><div class="formrow"><input id="distSkillSearch" placeholder="搜索单个 skill 名称或描述"><div id="distSkillChoices" class="choice-grid">${distSkillChoices}</div></div><div id="distSkillSelected" class="note">已选 skill：无</div><div class="formrow">${DATA.agents.map(a=>`<label class="ck"><input type="checkbox" data-dist-agent="${esc(a.name)}">${esc(a.name)}</label>`).join("")}<label class="ck"><input type="checkbox" id="distReplace">按选择移除不再需要的本库投影</label><button data-distribute>预览分发</button></div><div id="distSaved" class="note">选择 agent 后显示已保存来源选择。</div><div id="distProjection" class="note">当前投影结果：选择 agent 后显示。</div><p class="note">去重按投影目标；多 agent 的已保存来源不同会明确提示，需先手动选出一套共同来源再预览。非 skillhub 管理项不会被移除。</p></div>`;
+  const bindSearch=(inputId,containerId)=>{const input=document.getElementById(inputId),container=document.getElementById(containerId);if(!input||!container)return;input.addEventListener("input",()=>{const q=input.value.trim().toLowerCase();container.querySelectorAll(".choice-item").forEach(item=>{item.style.display=!q||item.dataset.search.includes(q)?"":"none"})})};
+  bindSearch("createSkillSearch","createSkillChoices"); bindSearch("distGroupSearch","distGroupChoices"); bindSearch("distSkillSearch","distSkillChoices");
+  DIST_SELECTION_DIRTY=false; DIST_SELECTION_CONFLICT=false; syncDistributionSelection();
+}
+document.getElementById("tab-mt").addEventListener("click",e=>{
+  const imp=e.target.closest("[data-import-agent]");
+  if(imp){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/import",{agent:imp.dataset.importAgent,path:imp.dataset.importPath},"导入来源 skill");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const create=e.target.closest("[data-create-group]");
+  if(create){(async()=>{try{const gid=document.getElementById("groupName").value.trim();const members=[...document.querySelectorAll("[data-create-group-sid]:checked")].map(x=>x.dataset.createGroupSid);if(!gid){alert("请填写分组名称");return}const ad=await postPreviewThenApply("/api/groups",{group_id:gid,members,name:gid,kind:"manual"},"创建分组关系");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const saveGroup=e.target.closest("[data-save-group]");
+  if(saveGroup){(async()=>{try{const row=saveGroup.closest("[data-group-editor]");const gid=saveGroup.dataset.saveGroup;const members=[...row.querySelectorAll("[data-group-member]:checked")].map(x=>x.dataset.sid);const old=DATA.groups[gid]||{};const name=row.querySelector("[data-group-name]").value.trim()||gid;const ad=await postPreviewThenApply("/api/groups",{group_id:gid,members,name,kind:old.kind||"manual",description:old.description||""},"保存分组成员与名称");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const deleteGroup=e.target.closest("[data-delete-group]");
+  if(deleteGroup){(async()=>{try{const ad=await postPreviewThenApply("/api/groups/delete",{group_id:deleteGroup.dataset.deleteGroup},"删除分组（不删除 skill）");if(ad)load()}catch(err){alert(err.message)}})();return}
+  const dist=e.target.closest("[data-distribute]");
+  if(dist){(async()=>{try{const agents=[...document.querySelectorAll("[data-dist-agent]:checked")].map(x=>x.dataset.distAgent);const groups=[...document.querySelectorAll("[data-dist-group]:checked")].map(x=>x.dataset.distGroup);const sids=[...document.querySelectorAll("[data-dist-sid]:checked")].map(x=>x.dataset.distSid);if(!agents.length){alert("请先选择至少一个目标 agent");return}if(DIST_SELECTION_CONFLICT&&!DIST_SELECTION_DIRTY){alert("选中 agent 的已保存来源不同，请先手动选出一套共同的分组/skill 后再预览");return}if(!groups.length&&!sids.length&&!DIST_SELECTION_DIRTY){alert("请至少选择一个分组或单个 skill；若要清空来源，请先取消勾选后再预览");return}const ad=await postPreviewThenApply("/api/distribute",{agents,groups,sids,replace:document.getElementById("distReplace").checked},"预览并分发已选择的 skill");if(ad)load()}catch(err){alert(err.message)}})()}
+});
+function savedDistributionSource(agent){
+  const raw=(DATA.distribution_sources||{})[agent]||{};
+  return {groups:Array.isArray(raw.groups)?raw.groups:[],sids:Array.isArray(raw.sids)?raw.sids:[],replace:!!raw.replace};
+}
+function distributionSourceKey(source){return JSON.stringify({groups:[...(source.groups||[])].sort(),sids:[...(source.sids||[])].sort(),replace:!!source.replace})}
+function syncDistributionSelection(){
+  const agents=[...document.querySelectorAll("[data-dist-agent]:checked")].map(x=>x.dataset.distAgent);
+  const sources=agents.map(savedDistributionSource);
+  DIST_SELECTION_CONFLICT=sources.length>1&&sources.some(source=>distributionSourceKey(source)!==distributionSourceKey(sources[0]));
+  if(agents.length===1 || (agents.length>1&&!DIST_SELECTION_CONFLICT)){
+    const source=sources[0]||{groups:[],sids:[],replace:false};
+    document.querySelectorAll("[data-dist-group]").forEach(x=>{x.checked=source.groups.includes(x.dataset.distGroup)});
+    document.querySelectorAll("[data-dist-sid]").forEach(x=>{x.checked=source.sids.includes(x.dataset.distSid)});
+    const replace=document.getElementById("distReplace"); if(replace)replace.checked=source.replace;
+    DIST_SELECTION_DIRTY=false;
+  }else if(DIST_SELECTION_CONFLICT){
+    document.querySelectorAll("[data-dist-group],[data-dist-sid]").forEach(x=>{x.checked=false});
+    const replace=document.getElementById("distReplace"); if(replace)replace.checked=false;
+    DIST_SELECTION_DIRTY=false;
+  }else if(!agents.length){
+    document.querySelectorAll("[data-dist-group],[data-dist-sid]").forEach(x=>{x.checked=false});
+    const replace=document.getElementById("distReplace"); if(replace)replace.checked=false;
+    DIST_SELECTION_DIRTY=false;
+  }
+  updateDistributionSummary();
+}
+function updateDistributionSummary(){
+  const groupNames=[...document.querySelectorAll("[data-dist-group]:checked")].map(x=>{const g=DATA.groups[x.dataset.distGroup]||{};return g.name||x.dataset.distGroup});
+  const skillNames=[...document.querySelectorAll("[data-dist-sid]:checked")].map(x=>(DATA.skills.find(s=>s.id===x.dataset.distSid)||{}).name||x.dataset.distSid);
+  const agents=[...document.querySelectorAll("[data-dist-agent]:checked")].map(x=>x.dataset.distAgent);
+  const groupEl=document.getElementById("distGroupSelected"),skillEl=document.getElementById("distSkillSelected"),savedEl=document.getElementById("distSaved"),projectionEl=document.getElementById("distProjection");
+  if(groupEl)groupEl.textContent="当前选择分组："+(groupNames.join("、")||"无");
+  if(skillEl)skillEl.textContent="当前选择 skill："+(skillNames.join("、")||"无");
+  if(savedEl){
+    if(!agents.length)savedEl.textContent="选择 agent 后显示已保存来源选择。";
+    else if(DIST_SELECTION_CONFLICT)savedEl.textContent="已选 agent 的保存来源不同；当前未自动合并，请手动选出共同来源后再预览。";
+    else savedEl.textContent="已保存来源："+agents.map(agent=>{const source=savedDistributionSource(agent);const groups=(source.groups||[]).map(gid=>(DATA.groups[gid]||{}).name||`已删除分组:${gid}`);const sids=(source.sids||[]).map(sid=>(DATA.skills.find(s=>s.id===sid)||{}).name||`已删除 skill:${sid}`);return `${agent} [分组:${groups.join("、")||"无"}; skill:${sids.join("、")||"无"}; replace:${source.replace?"是":"否"}]`}).join("；");
+    if(DIST_SELECTION_DIRTY)savedEl.textContent+="（当前选择已修改，确认后会覆盖选中 agent 的来源）";
+  }
+  if(projectionEl){const saved=DATA.skills.filter(s=>agents.some(agent=>["linked","trial"].includes(s.states?.[agent]))).map(s=>s.name);projectionEl.textContent="当前投影结果："+(saved.join("、")||"无");}
+}
+document.getElementById("tab-mt").addEventListener("change",e=>{
+  if(e.target.matches("[data-dist-agent]")){syncDistributionSelection();return}
+  if(e.target.matches("[data-dist-group],[data-dist-sid],#distReplace")){DIST_SELECTION_DIRTY=true;updateDistributionSummary()}
+});
+document.getElementById("tab-mt").addEventListener("dragstart",e=>{
+  const item=e.target.closest("[data-drag-sid]"); if(item)e.dataTransfer.setData("text/plain",item.dataset.dragSid);
+});
+document.getElementById("tab-mt").addEventListener("dragover",e=>{if(e.target.closest("[data-drop-group]"))e.preventDefault()});
+document.getElementById("tab-mt").addEventListener("drop",e=>{
+  const target=e.target.closest("[data-drop-group]"); if(!target)return; e.preventDefault();
+  const sid=e.dataTransfer.getData("text/plain"), gid=target.dataset.dropGroup, old=DATA.groups[gid]||{};
+  if(!sid||((old.members||[]).includes(sid)))return;
+  (async()=>{try{const ad=await postPreviewThenApply("/api/groups",{group_id:gid,members:[...(old.members||[]),sid],name:old.name||gid,kind:old.kind||"manual"},"将 skill 拖入分组");if(ad)load()}catch(err){alert(err.message)}})();
+});
+
+/* ---------- 日志 / 设置 / 模型 ---------- */
+function renderLogs(){
+  const el=document.getElementById("tab-lg");
+  const modelRows=(DATA.models?.agents||[]).map(m=>`<tr><td>${esc(m.agent)}</td><td>${m.available?esc(m.models.join(", ")):"—"}</td><td>${esc(m.reason)}</td></tr>`).join("");
+  const logs=(DATA.logs||[]).slice().reverse().map(x=>`<tr><td class="mono">${esc(x.at)}</td><td>${esc(x.event)}</td><td>${esc(x.status)}</td><td class="mono">${esc(x.sid||"")}</td></tr>`).join("");
+  const callable=(DATA.models?.agents||[]).filter(m=>m.callable&&m.models?.length);
+  const choices=callable.map(m=>`<option value="${esc(m.agent)}" data-models="${esc(JSON.stringify(m.callable_models||m.models))}">${esc(m.agent)}</option>`).join("");
+  el.innerHTML=`<div class="panel"><h3>模型发现与分组建议</h3><p class="note">只读取实际配置；调用只在用户点击后发生，向模型发送的字段严格是 skill 名称和描述。结果先展示，批量/单项接受都要再次确认；人工分组不会被覆盖，模型失败不会改组。</p><div class="formrow"><select id="modelAgent">${choices||`<option value="">没有可安全调用的本机模型</option>`}</select><select id="modelName"></select><button data-model-suggest ${callable.length?"":"disabled"}>生成分组建议</button></div><div class="formrow">${DATA.skills.map(s=>`<label class="ck"><input type="checkbox" data-model-sid="${esc(s.id)}">${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("")}</div><div id="modelSuggestions"></div><table><thead><tr><th>agent</th><th>模型</th><th>限制</th></tr></thead><tbody>${modelRows||`<tr><td colspan="3">无</td></tr>`}</tbody></table></div>
+  <div class="panel"><h3>设置</h3><div class="formrow"><label>回收保留天数 <input id="retentionDays" type="number" min="1" value="${esc(DATA.settings?.trash_retention_days||7)}"></label><button data-save-settings>预览并保存</button></div><p class="note">设置保存是明确写操作；GUI 启动/刷新不会自动清理回收区。</p></div>
+  <div class="panel"><h3>审计日志</h3><table><thead><tr><th>时间</th><th>事件</th><th>状态</th><th>skill</th></tr></thead><tbody>${logs||`<tr><td colspan="4">暂无日志</td></tr>`}</tbody></table></div>`;
+  const agentSelect=document.getElementById("modelAgent");
+  const updateModels=()=>{const selected=callable.find(m=>m.agent===agentSelect?.value);const modelSelect=document.getElementById("modelName");if(modelSelect)modelSelect.innerHTML=(selected?.callable_models||selected?.models||[]).map(x=>`<option>${esc(x)}</option>`).join("")};
+  if(agentSelect){agentSelect.addEventListener("change",updateModels);updateModels()}
+  renderModelSuggestions();
+}
+function renderModelSuggestions(){
+  const el=document.getElementById("modelSuggestions"); if(!el)return;
+  if(!MODEL_SUGGESTIONS.length){el.innerHTML="";return}
+  el.innerHTML=`<div class="sect">待确认建议</div><div class="formrow"><button data-model-accept-all>确认接受全部建议</button></div>`+
+    MODEL_SUGGESTIONS.map((s,i)=>`<div class="panel"><b>${esc(s.name)}</b><span class="note"> ${(s.members||[]).map(id=>esc((DATA.skills.find(x=>x.id===id)||{}).name||id)).join("、")}</span><div class="formrow"><button class="smallbtn" data-model-accept="${i}">接受此组</button><button class="smallbtn" data-model-adjust="${i}">调整名称后接受</button></div></div>`).join("");
+}
+document.getElementById("tab-lg").addEventListener("click",e=>{
+  const suggest=e.target.closest("[data-model-suggest]");
+  if(suggest){(async()=>{try{const sids=[...document.querySelectorAll("[data-model-sid]:checked")].map(x=>x.dataset.modelSid);if(!sids.length){alert("先选择要分组的 skill");return}const r=await fetch("/api/models/suggest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({agent:document.getElementById("modelAgent").value,model:document.getElementById("modelName").value,sids})});const d=await r.json();if(!r.ok||d.error)throw new Error(d.error||"模型建议失败");MODEL_SUGGESTIONS=d.suggestions||[];renderModelSuggestions()}catch(err){alert("模型建议未应用："+err.message)}})();return}
+  const acceptAll=e.target.closest("[data-model-accept-all]");
+  if(acceptAll){(async()=>{try{const ad=await postPreviewThenApply("/api/model-groups",{suggestions:MODEL_SUGGESTIONS},"批量接受模型分组建议");if(ad){MODEL_SUGGESTIONS=[];load()}}catch(err){alert(err.message)}})();return}
+  const accept=e.target.closest("[data-model-accept]");
+  if(accept){(async()=>{try{const ad=await postPreviewThenApply("/api/model-groups",{suggestions:[MODEL_SUGGESTIONS[Number(accept.dataset.modelAccept)]]},"接受单个模型分组建议");if(ad){MODEL_SUGGESTIONS.splice(Number(accept.dataset.modelAccept),1);renderModelSuggestions();load()}}catch(err){alert(err.message)}})();return}
+  const adjust=e.target.closest("[data-model-adjust]");
+  if(adjust){const i=Number(adjust.dataset.modelAdjust);const copy={...MODEL_SUGGESTIONS[i],name:prompt("调整组名",MODEL_SUGGESTIONS[i].name)||MODEL_SUGGESTIONS[i].name};(async()=>{try{const ad=await postPreviewThenApply("/api/model-groups",{suggestions:[copy]},"确认应用调整后的模型分组");if(ad){MODEL_SUGGESTIONS.splice(i,1);renderModelSuggestions();load()}}catch(err){alert(err.message)}})();return}
+  const save=e.target.closest("[data-save-settings]");
+  if(save){(async()=>{try{const ad=await postPreviewThenApply("/api/settings",{settings:{trash_retention_days:Number(document.getElementById("retentionDays").value)}},"保存 skillhub 设置");if(ad)load()}catch(err){alert(err.message)}})()}
+});
 
 /* ---------- tabs ---------- */
 document.getElementById("tabs").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b)return;
   TAB=b.dataset.t;
   document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x===b));
-  ["ov","sk","mc","bk"].forEach(t=>document.getElementById("tab-"+t).hidden=(t!==TAB));
+  ["ov","sk","mc","bk","mt","lg"].forEach(t=>document.getElementById("tab-"+t).hidden=(t!==TAB));
   if(TAB==="sk")renderSkillTable();
 });
 
