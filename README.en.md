@@ -101,7 +101,7 @@ python3 -m skillhub rollback <timestamp> --apply
 python3 -m skillhub cleanup --keep 3 --apply
 
 # Local web GUI (view + explicit link/unlink actions)
-python3 -m skillhub gui [--port 8317] [--no-browser]
+python3 -m skillhub gui [--port 8317] [--no-browser] [--read-only]
 ```
 
 `link`/`unlink` accept a full skill_id or a name prefix.
@@ -116,16 +116,19 @@ python3 -m skillhub gui [--port 8317] [--no-browser]
 - **Groups / distribution**: drag or checkbox-select skills into manual groups and distribute per-agent saved group/explicit-skill sources; changing a group does not write agents, and the next preview resolves current members while retaining explicit selections. Formal/UL trial projections are deduplicated by target so replace cannot remove the active UL accidentally;
 - **Diagnostics / models**: static tool and environment checks block publish on explicit missing or unconfirmed inferred dependencies; configured models are shown, and only a verified existing-agent API or explicit tool-free direct API can be called after an explicit user click;
 - **MCP servers**: central definitions (transport, target, env/header variable names, agents);
-- **Backups**: snapshot sizes and whether replaced conflict dirs are included;
+- **Backups / trash**: snapshot listing and per-skill trash restore; full-store rollback stays on the CLI;
 - **Sortable columns + CSV export**: click a column header to sort; export the current filtered view as CSV;
 - **Auto refresh**: opt-in periodic refresh, handy when mixing GUI and CLI operations.
 
-Safety: binds `127.0.0.1` only; API requests must pass loopback Host/Origin checks and a
-startup-generated HttpOnly session cookie. All POST endpoints require `application/json`, a size
-limit, and preview unless `apply: true` is explicitly sent. External editors use an argument array
-with `shell=False`; model prompts contain only skill names and descriptions, never paths, scripts,
-or secrets. The risk gate (see below) applies in the GUI too. The GUI reads the same `~/.skillhub`
-data as the CLI; hit refresh for the latest state.
+Safety: binds `127.0.0.1` only. The process prints a one-time token URL; `GET /` without that
+token does not issue a session cookie. GET requests check loopback Host and the session cookie
+(same-origin GET fetch omits Origin, so a missing Origin is allowed; a present Origin must match).
+POST requests require a matching loopback Origin. Write endpoints require `application/json`, a size
+limit, and explicit `apply`. Link/unlink also preview first. The GUI rejects `allow_risky`, MCP
+`command`/`args` edits, editor settings, and full-store rollback (use the CLI). Publish, MCP generate,
+replace-distribute, and cleanup require a confirmation phrase. `--read-only` disables all POST
+handlers. The risk gate still applies and cannot be bypassed from the page. The GUI reads the same
+`~/.skillhub` data as the CLI.
 
 ## MCP Configuration Layer
 

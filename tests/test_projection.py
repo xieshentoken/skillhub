@@ -103,6 +103,7 @@ class SecurityRegressionTests(SkillhubFixture):
         applied = self.run_cli("link", sid, "--agents", "claude", "--apply")
         self.assertEqual(applied.returncode, 0, applied.stderr)
         self.assertTrue(target.is_symlink())
+        self.assertEqual(self.hub.stat().st_mode & 0o777, 0o700)
 
     def test_risk_gate_requires_allow_risky_separately_from_force(self) -> None:
         self.add_skill(script="sudo echo unsafe\n")
@@ -258,6 +259,10 @@ class SecurityRegressionTests(SkillhubFixture):
         self.assertNotEqual(doctor.returncode, 0)
         report = json.loads(doctor.stdout)
         self.assertGreaterEqual(report["summary"].get("store_drift", 0), 1)
+        claude = json.loads(self.run_cli("status", "--agent", "claude", "--json").stdout)
+        claude_row = next(row for row in claude["agents"] if row["agent"] == "claude")
+        self.assertEqual(claude_row.get("store_drift", 0), 0)
+        self.assertGreaterEqual(claude_row.get("not_linked", 0), 1)
 
     def test_mcp_parse_failure_does_not_overwrite_and_resolve_requires_env(self) -> None:
         self.add_skill()
@@ -612,63 +617,168 @@ class SecurityRegressionTests(SkillhubFixture):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(target.exists())
 
-    def test_gui_requires_loopback_session_json_and_explicit_apply(self) -> None:
-        self.add_skill()
-        sid = self.import_skill()
+    def _start_gui(self, *, read_only: bool = False):
         import importlib
         sys.path.insert(0, str(WS))
         old_env = dict(os.environ)
         os.environ.update(self.env)
+        for name in list(sys.modules):
+            if name == "skillhub" or name.startswith("skillhub."):
+                sys.modules.pop(name, None)
         webgui = importlib.import_module("skillhub.webgui")
         httpd = webgui.ThreadingHTTPServer(("127.0.0.1", 0), webgui._Handler)
         httpd.skillhub_token = "test-session"
+        httpd.skillhub_read_only = read_only
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()
-        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        port = httpd.server_address[1]
+        base = f"http://127.0.0.1:{port}"
+        origin = f"http://127.0.0.1:{port}"
 
-        def request(path: str, *, data=None, content_type=None, cookie="test-session", origin=None):
-            headers = {"Host": f"127.0.0.1:{httpd.server_address[1]}"}
+        def request(path: str, *, data=None, content_type=None, cookie="test-session",
+                    origin_header="same", raw=False):
+            headers = {"Host": f"127.0.0.1:{port}"}
             if cookie:
                 headers["Cookie"] = f"skillhub_session={cookie}"
-            if origin:
+            if origin_header == "same":
                 headers["Origin"] = origin
+            elif origin_header:
+                headers["Origin"] = origin_header
             if content_type:
                 headers["Content-Type"] = content_type
-            req = urllib.request.Request(base + path, data=data, headers=headers, method="POST" if data is not None else "GET")
+            req = urllib.request.Request(base + path, data=data, headers=headers,
+                                         method="POST" if data is not None else "GET")
             try:
                 with urllib.request.urlopen(req) as response:
-                    return response.status, json.loads(response.read().decode("utf-8"))
+                    body = response.read()
+                    if raw:
+                        return response.status, body, response.headers
+                    return response.status, json.loads(body.decode("utf-8"))
             except urllib.error.HTTPError as exc:
-                return exc.code, json.loads(exc.read().decode("utf-8"))
+                body = exc.read()
+                if raw:
+                    return exc.code, body, exc.headers
+                try:
+                    parsed = json.loads(body.decode("utf-8"))
+                except json.JSONDecodeError:
+                    parsed = {"raw": body.decode("utf-8", errors="replace")}
+                return exc.code, parsed
 
-        status, _ = request("/api/health", cookie="wrong")
-        self.assertEqual(status, 403)
-        status, _ = request("/api/health", origin="http://evil.test")
-        self.assertEqual(status, 403)
-        self.add_skill("中文 名'\"")
-        result = self.run_cli("import", "--agent", "pi", "--apply")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        index = json.loads((self.hub / "index.json").read_text(encoding="utf-8"))
-        special_sid = next(sid for sid, item in index.items()
-                           if item["name"] == "中文 名'\"")
-        status, body = request("/api/skill/" + quote(special_sid, safe=""))
-        self.assertEqual(status, 200, body)
-        self.assertEqual(body["manifest"]["id"], special_sid)
-        payload = json.dumps({"sid": sid, "agents": ["claude"]}).encode()
-        status, _ = request("/api/link", data=payload, content_type="text/plain")
-        self.assertEqual(status, 415)
-        status, _ = request("/api/link", data=json.dumps({"sid": sid, "agents": "claude"}).encode(), content_type="application/json")
-        self.assertEqual(status, 400)
-        status, body = request("/api/link", data=payload, content_type="application/json")
-        self.assertEqual(status, 200)
-        self.assertEqual(body["mode"], "plan")
-        self.assertFalse((self.claude / "demo").exists())
-        payload = json.dumps({"sid": sid, "agents": ["claude"], "apply": True}).encode()
-        status, _ = request("/api/link", data=payload, content_type="application/json")
-        self.assertEqual(status, 200)
-        self.assertTrue((self.claude / "demo").is_symlink())
-        httpd.shutdown(); thread.join(timeout=2); httpd.server_close()
-        os.environ.clear(); os.environ.update(old_env)
+        def close():
+            httpd.shutdown()
+            thread.join(timeout=2)
+            httpd.server_close()
+            os.environ.clear()
+            os.environ.update(old_env)
+
+        return request, close, webgui
+
+    def test_gui_requires_loopback_session_json_and_explicit_apply(self) -> None:
+        self.add_skill()
+        sid = self.import_skill()
+        request, close, _ = self._start_gui()
+        try:
+            status, body, headers = request("/", raw=True, cookie="", origin_header="")
+            self.assertEqual(status, 403)
+            self.assertNotIn("skillhub_session", headers.get("Set-Cookie", ""))
+            status, body, headers = request("/?token=test-session", raw=True, cookie="", origin_header="")
+            self.assertEqual(status, 200)
+            self.assertIn("skillhub_session=test-session", headers.get("Set-Cookie", ""))
+
+            status, _ = request("/api/health", cookie="wrong")
+            self.assertEqual(status, 403)
+            status, _ = request("/api/health", origin_header="http://evil.test")
+            self.assertEqual(status, 403)
+            status, body = request("/api/health", origin_header="")
+            self.assertEqual(status, 200, body)
+            self.assertTrue(body.get("ok"))
+            status, data = request("/api/data", origin_header="")
+            self.assertEqual(status, 200, data)
+            payload = json.dumps({"sid": sid, "agents": ["claude"]}).encode()
+            status, _ = request("/api/link", data=payload, content_type="application/json",
+                                origin_header="")
+            self.assertEqual(status, 403)
+
+            self.add_skill("中文 名'\"")
+            result = self.run_cli("import", "--agent", "pi", "--apply")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            index = json.loads((self.hub / "index.json").read_text(encoding="utf-8"))
+            special_sid = next(sid for sid, item in index.items()
+                               if item["name"] == "中文 名'\"")
+            status, body = request("/api/skill/" + quote(special_sid, safe=""))
+            self.assertEqual(status, 200, body)
+            self.assertEqual(body["manifest"]["id"], special_sid)
+            payload = json.dumps({"sid": sid, "agents": ["claude"]}).encode()
+            status, _ = request("/api/link", data=payload, content_type="text/plain")
+            self.assertEqual(status, 415)
+            status, _ = request("/api/link", data=json.dumps({"sid": sid, "agents": "claude"}).encode(), content_type="application/json")
+            self.assertEqual(status, 400)
+            status, body = request("/api/link", data=payload, content_type="application/json")
+            self.assertEqual(status, 200)
+            self.assertEqual(body["mode"], "plan")
+            self.assertFalse((self.claude / "demo").exists())
+            payload = json.dumps({"sid": sid, "agents": ["claude"], "apply": True}).encode()
+            status, _ = request("/api/link", data=payload, content_type="application/json")
+            self.assertEqual(status, 200)
+            self.assertTrue((self.claude / "demo").is_symlink())
+            status, data = request("/api/data")
+            self.assertEqual(status, 200)
+            self.assertNotIn("models", data)
+            self.assertNotIn("sources", data)
+            self.assertFalse(data.get("read_only"))
+        finally:
+            close()
+
+    def test_gui_rejects_risky_force_flags_rollback_editor_and_read_only(self) -> None:
+        self.add_skill(script="sudo echo unsafe\n")
+        sid = self.import_skill()
+        request, close, _ = self._start_gui()
+        try:
+            payload = json.dumps({"sid": sid, "agents": ["claude"], "apply": True,
+                                  "allow_risky": True}).encode()
+            status, body = request("/api/link", data=payload, content_type="application/json")
+            self.assertEqual(status, 400, body)
+            self.assertIn("allow-risky", body["error"])
+            self.assertFalse((self.claude / "demo").exists())
+
+            status, body = request("/api/backups/rollback",
+                                   data=json.dumps({"ts": "x", "apply": True, "confirm": True}).encode(),
+                                   content_type="application/json")
+            self.assertEqual(status, 404)
+
+            status, body = request("/api/settings",
+                                   data=json.dumps({"apply": True, "settings": {"editor": "python3"}}).encode(),
+                                   content_type="application/json")
+            self.assertEqual(status, 400, body)
+            self.assertIn("外部编辑器", body["error"])
+
+            status, body = request("/api/mcp/edit",
+                                   data=json.dumps({"sid": "demo", "apply": True,
+                                                    "changes": {"command": "/bin/true"}}).encode(),
+                                   content_type="application/json")
+            self.assertEqual(status, 400, body)
+            self.assertIn("command", body["error"])
+
+            status, body = request("/api/skill/publish",
+                                   data=json.dumps({"sid": sid, "apply": True}).encode(),
+                                   content_type="application/json")
+            self.assertEqual(status, 400, body)
+            self.assertIn("PUBLISH", body["error"])
+        finally:
+            close()
+
+        request, close, _ = self._start_gui(read_only=True)
+        try:
+            payload = json.dumps({"sid": sid, "agents": ["claude"], "apply": True}).encode()
+            status, body = request("/api/link", data=payload, content_type="application/json")
+            self.assertEqual(status, 403, body)
+            self.assertIn("只读", body["error"])
+            self.assertFalse((self.claude / "demo").exists())
+            status, data = request("/api/data")
+            self.assertEqual(status, 200)
+            self.assertTrue(data.get("read_only"))
+        finally:
+            close()
 
     def test_zip_cleanup_and_manifest_validation(self) -> None:
         self.add_skill()

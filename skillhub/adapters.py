@@ -99,13 +99,10 @@ def projection_state(target: Path, sid: str, *, central: Optional[str] = None,
         if central != "ok":
             return "store_drift"
         return "linked"
-    # A missing target must not hide corruption in the central authority.  A
-    # link operation would otherwise proceed because there is no projection to
-    # inspect, effectively copying unverified bytes into a new projection.
-    if central == "store_drift":
-        return "store_drift"
+    # 没有投影目标时不要把中央库漂移误报成已映射。漂移只描述「目标存在
+    # 且指向本库，但中央副本已偏离索引」。
     if not target.exists():
-        return "not_linked" if central == "ok" else "broken"
+        return "not_linked" if central != "missing" else "broken"
     if not target.is_dir():
         return "conflict"
     marker = _read_marker(target)
@@ -541,7 +538,7 @@ def plan_link(sid: str, agents: List[str], force: bool = False,
         if state in {"linked", "copy"}:
             plan[agent] = [{"type": "skip", "target": str(target), "detail": f"已投影({state})"}]
             continue
-        if state == "store_drift":
+        if state == "store_drift" or _central_state(effective_sid, effective_manifest) == "store_drift":
             plan[agent] = [{"type": "store_drift", "target": str(target),
                             "detail": "中央库文件已偏离索引摘要，需先恢复或重新导入"}]
             continue
@@ -941,7 +938,7 @@ def apply_link(sid: str, agents: List[str], force: bool = False,
         if state in {"linked", "copy"}:
             results[agent] = [{"type": "skip", "target": str(target), "detail": f"已投影({state})"}]
             continue
-        if state == "store_drift":
+        if state == "store_drift" or _central_state(effective_sid, effective_manifest) == "store_drift":
             results[agent] = [{"type": "store_drift", "target": str(target),
                                "detail": "中央库文件已偏离索引摘要，拒绝继续投影"}]
             continue

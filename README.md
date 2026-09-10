@@ -117,8 +117,8 @@ python3 -m skillhub add out.zip --apply                      # 导入 zip 或目
 python3 -m skillhub list --json
 python3 -m skillhub status --json --agent pi
 
-# 本地 Web GUI（127.0.0.1；支持查看 + 投影/解除投影 + CSV 导出）
-python3 -m skillhub gui [--port 8317] [--no-browser]
+# 本地 Web GUI（127.0.0.1；带一次性令牌；写操作先预览）
+python3 -m skillhub gui [--port 8317] [--no-browser] [--read-only]
 ```
 
 `link`/`unlink` 可用 skill_id 或名称前缀定位 skill。
@@ -128,15 +128,15 @@ python3 -m skillhub gui [--port 8317] [--no-browser]
 `skillhub gui` 启动一个本地网页控制台（自动打开浏览器）：
 
 - **Agent 概览**：每个 agent 的目录、投影方式（symlink/copy/nested）、已投影/冲突/未投影计数与比例条、MCP 支持情况；
-- **中央库 Skills**：搜索 + 按 agent/状态/风险过滤；点击行查看详情，并可在详情里执行 link/unlink、创建/编辑 ul、切换试用 agent、发布、改名、版本差异、静态诊断和文本保存；
+- **中央库 Skills**：搜索 + 按 agent/状态/风险过滤；列表与 Obsidian 式关系图谱（每个 skill 一个点，已投影到 agent 的画连线；悬停、单击高亮邻居、双击打开详情）；详情里可执行 link/unlink、创建/编辑 ul、切换试用 agent、发布、改名、版本差异、静态诊断和文本保存；
 - **MCP Servers**：中央库定义一览（transport、目标、env/header 变量名、适用 agent）；
-- **备份 / 回收区**：备份点、单 skill 回收项、手动保留、单项恢复和明确确认的到期清理；GUI 启动或刷新不会自动删除；
+- **备份 / 回收区**：备份点、单 skill 回收项、手动保留、单项恢复和明确确认的到期清理；全库 rollback 只走 CLI；GUI 启动或刷新不会自动删除；
 - **导入 / 分组 / 分发**：从已发现的 agent 来源选择版本导入；同名版本可比较；分组支持拖拽和勾选替代操作，分发按 agent 保存分组与单 skill 来源，组变化本身不写 agent，下一次预览按当前成员重新计算；显式单 skill 选择不会因移出分组而丢失，trial 的 formal/ul 共享目标也不会被 replace 误删；
 - **日志 / 设置 / 模型**：查看无密钥审计日志、设置回收期限、发现实际本机模型配置；不会把 Codex 的 `exec --json` 只读 sandbox 当作无工具协议，只有已验证的 Claude/OpenCode/Pi API 配置或显式无工具直接 API 才生成建议，其它模型仅显示配置但不可调用；
 - **表格可排序 + CSV 导出**：点击列头排序，导出当前过滤结果为 CSV；
 - **自动刷新**：可勾选定时刷新，配合外部 CLI 操作使用。
 
-安全边界：只绑定 `127.0.0.1`，API 校验 loopback Host/Origin 和启动时生成的 HttpOnly 会话 cookie；所有写端点要求 `application/json`、大小限制和显式 `apply`，文本编辑、外部编辑器、回收清理、MCP 生成、分组/分发均先预览；外部编辑器使用参数数组启动，不经过 shell；风险门禁（见下）在 GUI 同样生效。
+安全边界：只绑定 `127.0.0.1`；启动时在终端打印一次性令牌，浏览器必须用该 URL 才能拿到 HttpOnly 会话 cookie（无令牌的 `GET /` 不会发 cookie）。GET 校验 loopback Host 和会话 cookie（同源 GET fetch 不带 Origin，缺 Origin 放行；若带了 Origin 则必须同源）。POST 必须带匹配的 loopback Origin。写端点要求 `application/json`、大小限制和显式 `apply`，投影/解除也先预览再确认。GUI **拒绝** `allow_risky`、拒绝改 MCP `command`/`args`、拒绝配置外部编辑器、不提供全库 rollback。发布、MCP 生成、replace 分发和清理需再输入确认短语。`--read-only` 禁用全部 POST。风险门禁在 GUI 同样生效且不能从页面绕过。
 GUI 与 CLI 共享同一份 `~/.skillhub` 数据，刷新即最新。
 
 ## MCP 配置层（阶段 2）

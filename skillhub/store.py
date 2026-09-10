@@ -174,10 +174,21 @@ def atomic_write(path: Path, data: str | bytes, mode: int = 0o600) -> None:
             pass
 
 
+def harden_home_permissions() -> None:
+    """把已存在的中央库目录收紧为仅当前用户可访问。"""
+    for path in (INDEX_FILE.parent, STORE_DIR, TRASH_DIR):
+        if path.is_dir() and not path.is_symlink():
+            try:
+                os.chmod(path, 0o700)
+            except OSError:
+                pass
+
+
 def ensure_home() -> None:
     """仅供写操作调用；只读函数不得借此创建真实目录。"""
     INDEX_FILE.parent.mkdir(parents=True, exist_ok=True)
     STORE_DIR.mkdir(parents=True, exist_ok=True)
+    harden_home_permissions()
 
 
 def _validate_index(index: object) -> Dict[str, dict]:

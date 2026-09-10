@@ -3,147 +3,265 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>skillhub 控制台</title>
+<title>skillhub</title>
 <style>
   :root{
-    --bg:#0b0f17; --panel:#121826; --panel2:#0f1522; --line:#1e293b; --line2:#26324a;
-    --text:#e2e8f0; --muted:#8ea0bd; --dim:#5b6b87;
-    --accent:#4f8cff; --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --gray:#3b4a63;
-    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+    --bg:#f5f5f7; --panel:#ffffff; --panel2:#fafafc; --line:rgba(0,0,0,.08); --line2:rgba(0,0,0,.12);
+    --text:#1d1d1f; --muted:rgba(0,0,0,.8); --dim:rgba(0,0,0,.48);
+    --accent:#0071e3; --link:#0066cc; --green:#34c759; --amber:#ff9f0a; --red:#ff3b30; --gray:#d2d2d7;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,"SF Pro Text","PingFang SC","Helvetica Neue",Helvetica,Arial,sans-serif;
+    --display:-apple-system,"SF Pro Display","PingFang SC","Helvetica Neue",Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);
-       font:14px/1.55 -apple-system,"PingFang SC","Helvetica Neue",sans-serif}
-  a{color:var(--accent);text-decoration:none}
-  header{position:sticky;top:0;z-index:20;background:rgba(11,15,23,.92);backdrop-filter:blur(8px);
-         border-bottom:1px solid var(--line);padding:12px 20px;display:flex;align-items:center;
-         gap:14px;flex-wrap:wrap}
-  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.3px}
-  header h1 span{color:var(--accent)}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:6px}
-  .chip{background:var(--panel);border:1px solid var(--line);border-radius:20px;
-        padding:2px 10px;font-size:12px;color:var(--muted)}
-  .chip b{color:var(--text)}
-  .spacer{flex:1}
-  button{background:var(--panel);color:var(--text);border:1px solid var(--line2);
-         border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
-  button:hover{border-color:var(--accent);color:#fff}
-  .paths{font:11px var(--mono);color:var(--dim);padding:4px 20px 0}
-  nav{display:flex;gap:4px;padding:10px 20px 0;border-bottom:1px solid var(--line)}
-  nav button{border:none;border-radius:8px 8px 0 0;background:transparent;color:var(--muted);
-             padding:8px 16px;font-size:14px;border-bottom:2px solid transparent}
-  nav button.active{color:#fff;border-bottom-color:var(--accent);background:var(--panel2)}
-  main{padding:18px 20px 60px;max-width:1400px;margin:0 auto}
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-  .card h3{margin:0 0 2px;font-size:15px;display:flex;align-items:center;gap:8px}
-  .dotc{width:10px;height:10px;border-radius:50%;flex:none}
-  .badge{font-size:11px;border:1px solid var(--line2);border-radius:6px;padding:1px 7px;color:var(--muted)}
-  .badge.copy{color:var(--amber);border-color:rgba(245,158,11,.4)}
-  .badge.warn{color:var(--red);border-color:rgba(239,68,68,.4)}
-  .badge.ok{color:var(--green);border-color:rgba(34,197,94,.4)}
-  .dir{font:11px var(--mono);color:var(--dim);word-break:break-all;margin:4px 0 10px}
-  .nums{display:flex;gap:14px;font-size:13px;margin-bottom:8px}
-  .nums b{font-size:17px;margin-right:3px}
-  .bar{height:6px;border-radius:4px;background:var(--gray);overflow:hidden;display:flex}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:17px/1.47 var(--sans);letter-spacing:-.374px}
+  a{color:var(--link);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:var(--sans);letter-spacing:-.224px}
+  header{
+    position:sticky;top:0;z-index:30;
+    background:rgba(0,0,0,.8);color:#fff;
+    backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  }
+  .gn{max-width:1120px;margin:0 auto;min-height:48px;padding:6px 22px;
+      display:flex;align-items:center;gap:12px 18px;flex-wrap:wrap}
+  .gn-brand{font:600 17px/1 var(--display);letter-spacing:-.4px;color:#fff;white-space:nowrap}
+  .gn-brand span{font-weight:400;opacity:.72}
+  nav{display:flex;gap:2px;flex:1 1 420px;flex-wrap:wrap;align-items:center;min-width:0}
+  nav button{
+    border:0;background:transparent;color:rgba(255,255,255,.8);
+    font:400 12px/1 var(--sans);letter-spacing:0;padding:7px 9px;border-radius:980px;cursor:pointer}
+  nav button:hover{color:#fff}
+  nav button.active{color:#fff;background:rgba(255,255,255,.14)}
+  .gn-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+  .gn-time{font:400 12px/1.33 var(--sans);color:rgba(255,255,255,.48);letter-spacing:-.12px}
+  header .ck{color:rgba(255,255,255,.72);font-size:12px}
+  header button{
+    background:transparent;color:#fff;border:1px solid rgba(255,255,255,.28);
+    border-radius:980px;padding:5px 14px;cursor:pointer;font-size:12px;line-height:1.3}
+  header button:hover{background:rgba(255,255,255,.12)}
+  #refresh{background:var(--accent);border-color:transparent;color:#fff}
+  #refresh:hover{background:#0077ed}
+  .page-hero{background:#000;color:#fff;text-align:center;padding:72px 24px 56px}
+  .page-hero .eyebrow{margin:0 0 10px;font:600 12px/1.33 var(--sans);letter-spacing:.08em;
+      text-transform:uppercase;color:rgba(255,255,255,.56)}
+  .page-hero h1{margin:0;font:600 56px/1.07 var(--display);letter-spacing:-.28px}
+  .page-hero .sub{margin:12px 0 0;font:400 21px/1.19 var(--display);letter-spacing:.2px;color:rgba(255,255,255,.8)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:28px 12px 0}
+  .chip{background:rgba(255,255,255,.08);border:0;border-radius:980px;padding:6px 14px;
+        font:400 12px/1.33 var(--sans);color:rgba(255,255,255,.72);letter-spacing:-.12px}
+  .chip b{color:#fff;font-weight:600}
+  .paths{font:12px/1.5 var(--mono);color:rgba(255,255,255,.4);margin:18px 0 0;word-break:break-all}
+  .paths .mono{color:rgba(255,255,255,.56)}
+  main{padding:48px 22px 96px;max-width:1120px;margin:0 auto}
+  .section-head{margin:0 0 28px}
+  .section-head h2{margin:0;font:600 40px/1.1 var(--display);letter-spacing:-.2px}
+  .section-head p{margin:8px 0 0;font:400 17px/1.47 var(--sans);color:var(--dim)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+  .card{background:var(--panel);border:0;border-radius:12px;padding:24px 22px;
+        box-shadow:rgba(0,0,0,.04) 0 1px 2px}
+  .card h3{margin:0;font:700 21px/1.19 var(--display);letter-spacing:.23px;
+           display:flex;align-items:center;gap:8px}
+  .dotc{width:8px;height:8px;border-radius:50%;flex:none}
+  .badge{font:400 12px/1.33 var(--sans);letter-spacing:-.12px;border:0;border-radius:980px;
+         padding:3px 9px;background:#f5f5f7;color:var(--dim)}
+  .badge.copy{color:#c93400;background:rgba(255,159,10,.12)}
+  .badge.warn{color:var(--red);background:rgba(255,59,48,.1)}
+  .badge.ok{color:#248a3d;background:rgba(52,199,89,.12)}
+  .dir{font:12px/1.5 var(--mono);color:var(--dim);word-break:break-all;margin:10px 0 16px}
+  .nums{display:flex;gap:14px 20px;flex-wrap:wrap;font:400 12px/1.3 var(--sans);color:var(--dim);margin-bottom:14px}
+  .nums span{display:flex;flex-direction:column;gap:2px;white-space:nowrap}
+  .nums b{font:600 21px/1.1 var(--display);margin:0;color:var(--text);letter-spacing:-.2px}
+  .bar{height:4px;border-radius:980px;background:var(--gray);overflow:hidden;display:flex}
   .bar i{display:block;height:100%}
-  .meta{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.7}
-  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-  input[type=text],select{background:var(--panel2);border:1px solid var(--line2);color:var(--text);
-       border-radius:8px;padding:7px 12px;font-size:13px;outline:none}
-  input[type=text]:focus{border-color:var(--accent)}
+  .meta{font:12px/1.7 var(--sans);color:var(--dim);margin-top:14px;display:flex;gap:6px;flex-wrap:wrap}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+  input[type=text],select,input[type=number],textarea{
+    background:var(--panel2);border:3px solid rgba(0,0,0,.04);color:var(--text);
+    border-radius:11px;padding:8px 14px;font:14px/1.3 var(--sans);outline:none}
+  input[type=text]:focus,select:focus,input[type=number]:focus,textarea:focus{
+    border-color:transparent;box-shadow:0 0 0 2px var(--accent)}
   input[type=text]{min-width:240px}
-  label.ck{font-size:13px;color:var(--muted);display:flex;gap:5px;align-items:center;cursor:pointer}
-  table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:12px;overflow:hidden}
-  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
-  th{color:var(--muted);font-weight:600;background:var(--panel2);position:sticky;top:0;white-space:nowrap}
+  label.ck{font:400 14px/1.29 var(--sans);color:var(--dim);display:flex;gap:6px;align-items:center;cursor:pointer}
+  table{width:100%;border-collapse:separate;border-spacing:0;background:var(--panel);border-radius:12px;overflow:hidden}
+  th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;letter-spacing:-.224px}
+  th{color:var(--dim);font-weight:600;background:var(--panel2);position:sticky;top:48px;white-space:nowrap;font-size:12px}
   tbody tr{cursor:pointer}
-  tbody tr:hover{background:#182136}
-  td.mono,span.mono{font:12px var(--mono)}
-  .risk{display:inline-block;font-size:11px;border-radius:5px;padding:1px 6px;margin:1px 3px 1px 0;
-        background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
-  .risk.none{background:transparent;color:var(--dim);border-color:var(--line)}
-  .sdot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;cursor:default}
+  tbody tr:hover{background:#f5f5f7}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,span.mono{font:12px/1.4 var(--mono);letter-spacing:0}
+  .risk{display:inline-block;font:600 11px/1.3 var(--sans);border-radius:980px;padding:2px 8px;margin:1px 3px 1px 0;
+        background:rgba(255,59,48,.1);color:var(--red);border:0}
+  .risk.none{background:transparent;color:var(--dim)}
+  .sdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;cursor:default}
   .s-linked{background:var(--green)} .s-conflict{background:var(--amber)} .s-not_linked{background:var(--gray)}
   .s-broken,.s-copy_broken,.s-copy_drift,.s-store_drift{background:var(--red)}
-  .desc{color:var(--muted);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* 抽屉 */
-  #drawer{position:fixed;top:0;right:-560px;width:560px;max-width:94vw;height:100vh;z-index:50;
-          background:var(--panel2);border-left:1px solid var(--line2);transition:right .22s ease;
-          display:flex;flex-direction:column;box-shadow:-18px 0 50px rgba(0,0,0,.5)}
+  .desc{color:var(--dim);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #drawer{position:fixed;top:0;right:-580px;width:560px;max-width:94vw;height:100vh;z-index:50;
+          background:#fff;transition:right .28s cubic-bezier(.4,0,.2,1);
+          display:flex;flex-direction:column;box-shadow:rgba(0,0,0,.22) 3px 5px 30px}
   #drawer.open{right:0}
-  #drawer .dhead{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
-  #drawer .dhead h2{margin:0;font-size:16px;flex:1}
-  #drawer .dbody{overflow:auto;padding:16px 18px;flex:1}
-  #mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none}
+  #drawer .dhead{padding:18px 22px;display:flex;align-items:center;gap:10px}
+  #drawer .dhead h2{margin:0;font:600 21px/1.19 var(--display);flex:1;letter-spacing:.2px}
+  #drawer .dbody{overflow:auto;padding:8px 22px 32px;flex:1}
+  #mask{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40;display:none}
   #mask.show{display:block}
-  .kv{display:grid;grid-template-columns:96px 1fr;gap:4px 12px;font-size:13px;margin-bottom:16px}
+  .kv{display:grid;grid-template-columns:88px 1fr;gap:8px 16px;font-size:14px;margin-bottom:20px}
   .kv dt{color:var(--dim)} .kv dd{margin:0;word-break:break-all}
-  .sect{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px}
-  .filelist{font:12px var(--mono);color:var(--muted);max-height:260px;overflow:auto;
-            border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--bg)}
-  .filelist div{display:flex;justify-content:space-between;gap:10px;padding:1px 0}
-  .projline{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:13px}
+  .sect{font:600 12px/1.33 var(--sans);color:var(--dim);letter-spacing:.06em;text-transform:uppercase;margin:24px 0 10px}
+  .filelist{font:12px/1.5 var(--mono);color:var(--dim);max-height:260px;overflow:auto;
+            border:0;border-radius:12px;padding:12px 14px;background:#f5f5f7}
+  .filelist div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+  .projline{display:flex;gap:8px;align-items:flex-start;padding:10px 0;font-size:14px;border-bottom:1px solid var(--line)}
+  .projline:last-of-type{border-bottom:0}
   .projline .mono{color:var(--dim);font-size:11px;word-break:break-all}
-  .empty{color:var(--dim);text-align:center;padding:40px 0}
-  .note{font-size:12px;color:var(--dim);margin-top:10px}
-  .note b{color:var(--muted)}
-  .formrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
-  .formrow input,.formrow textarea{background:var(--bg);border:1px solid var(--line2);color:var(--text);border-radius:6px;padding:6px 8px}
-  .formrow textarea{width:100%;min-height:180px;font:12px var(--mono)}
+  .empty{color:var(--dim);text-align:center;padding:64px 0;font-size:17px}
+  .note{font:400 12px/1.5 var(--sans);color:var(--dim);margin-top:14px;letter-spacing:-.12px}
+  .note b{color:var(--muted);font-weight:600}
+  .formrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+  .formrow input,.formrow textarea{background:var(--panel2);border:3px solid rgba(0,0,0,.04);color:var(--text);border-radius:11px;padding:8px 12px}
+  .formrow textarea{width:100%;min-height:180px;font:12px/1.5 var(--mono)}
   .choice-grid,.group-members{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  .choice-grid{max-height:150px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:7px;background:var(--bg)}
-  .choice-item{padding:2px 5px;border-radius:5px}
-  .choice-item:hover{background:var(--panel)}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
-  .danger{color:#fca5a5}.success{color:#86efac}
-  .diag-list{display:grid;gap:5px;margin:7px 0}
-  .smallbtn{padding:3px 8px;font-size:12px}
+  .choice-grid{max-height:160px;overflow:auto;padding:8px;border:0;border-radius:12px;background:#f5f5f7}
+  .choice-item{padding:4px 8px;border-radius:8px}
+  .choice-item:hover{background:#fff}
+  .panel{background:var(--panel);border:0;border-radius:12px;padding:22px;margin-bottom:16px;box-shadow:rgba(0,0,0,.04) 0 1px 2px}
+  .panel h3{margin:0 0 12px;font:700 21px/1.19 var(--display)}
+  .danger{color:var(--red)}.success{color:#248a3d}
+  .diag-list{display:grid;gap:6px;margin:8px 0}
+  button{background:#f5f5f7;color:var(--text);border:0;border-radius:8px;padding:8px 15px;cursor:pointer;font-size:14px}
+  button:hover{background:#e8e8ed}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .smallbtn{padding:5px 11px;font-size:12px;border-radius:980px;color:var(--link);background:transparent}
+  .smallbtn:hover{background:rgba(0,113,227,.08);text-decoration:none}
+  .view-switch{display:flex;gap:4px;background:#f5f5f7;padding:3px;border-radius:980px;margin-bottom:16px;width:fit-content}
+  .view-switch button{border-radius:980px;padding:6px 14px;font-size:13px;background:transparent;color:var(--dim)}
+  .view-switch button.active{background:#1d1d1f;color:#fff}
+  .graph-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .graph-stage{display:grid;grid-template-columns:1fr 250px;background:#1e1e1e;border-radius:12px;overflow:hidden;min-height:640px}
+  .graph-canvas-wrap{position:relative;min-height:640px}
+  #graphCanvas{width:100%;height:640px;display:block;background:#1e1e1e;touch-action:none;cursor:grab}
+  #graphCanvas.dragging{cursor:grabbing}
+  #graphHint{position:absolute;left:0;top:0;pointer-events:none;background:rgba(20,20,20,.92);color:#fff;
+             padding:4px 8px;border-radius:6px;font:12px/1.3 var(--sans);white-space:nowrap;
+             transform:translate(-50%,-140%);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+  #graphInfo{background:#111;color:rgba(255,255,255,.86);padding:18px 16px;font:13px/1.45 var(--sans);
+             border-left:1px solid rgba(255,255,255,.08);overflow:auto}
+  #graphInfo h3{margin:0 0 6px;font:600 17px/1.2 var(--display);color:#fff}
+  #graphInfo .k{color:rgba(255,255,255,.44);font-size:12px}
+  #graphInfo .nb{margin:8px 0 0;padding:0;list-style:none}
+  #graphInfo .nb li{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}
+  .graph-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;font:12px var(--sans);color:var(--dim)}
+  .graph-legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  #graphStat{color:var(--dim);font-size:12px}
+  .graph-size{display:flex;align-items:center;gap:8px;font:12px/1.3 var(--sans);color:var(--dim);white-space:nowrap}
+  .graph-size input[type=range]{width:100px;accent-color:var(--accent);vertical-align:middle}
+  .graph-size output{min-width:2.6em;color:var(--text);font-variant-numeric:tabular-nums}
+  @media (max-width:734px){
+    .page-hero h1{font-size:40px;line-height:1.1}
+    .page-hero .sub{font-size:19px}
+    .page-hero{padding:48px 20px 40px}
+    main{padding:32px 16px 72px}
+    .section-head h2{font-size:28px}
+    nav{order:3;flex:1 1 100%;padding:4px 0 8px}
+    .gn-time,#exportCsv{display:none}
+    .graph-stage{grid-template-columns:1fr;min-height:0}
+    .graph-canvas-wrap,#graphCanvas{height:480px;min-height:480px}
+    #graphInfo{min-height:140px;border-left:0;border-top:1px solid rgba(255,255,255,.08)}
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>skill<span>hub</span> 控制台</h1>
-  <div class="chips" id="chips"></div>
-  <div class="spacer"></div>
-  <span style="font-size:12px;color:var(--dim)" id="genat"></span>
-  <label class="ck"><input type="checkbox" id="autoRefresh"> 15s 自动刷新</label>
-  <button id="exportCsv">导出 CSV</button>
-  <button id="refresh">↻ 刷新</button>
+  <div class="gn">
+    <div class="gn-brand">skill<span>hub</span></div>
+    <nav id="tabs">
+      <button data-t="ov" class="active">概览</button>
+      <button data-t="sk">Skills</button>
+      <button data-t="mc">MCP</button>
+      <button data-t="bk">备份</button>
+      <button data-t="mt">分发</button>
+      <button data-t="lg">设置</button>
+    </nav>
+    <div class="gn-actions">
+      <span class="gn-time" id="genat"></span>
+      <label class="ck"><input type="checkbox" id="autoRefresh"> 自动刷新</label>
+      <button id="exportCsv">导出 CSV</button>
+      <button id="refresh">刷新</button>
+    </div>
+  </div>
 </header>
-<div class="paths" id="paths"></div>
-<nav id="tabs">
-  <button data-t="ov" class="active">Agent 概览</button>
-  <button data-t="sk">中央库 Skills</button>
-  <button data-t="mc">MCP Servers</button>
-  <button data-t="bk">备份</button>
-  <button data-t="mt">导入 / 分组 / 分发</button>
-  <button data-t="lg">日志 / 设置 / 模型</button>
-</nav>
+<div class="page-hero">
+  <p class="eyebrow">Local console</p>
+  <h1>本机技能中枢</h1>
+  <p class="sub">一份中央库，投影到每一个 agent。</p>
+  <div class="chips" id="chips"></div>
+  <div class="paths" id="paths"></div>
+</div>
 <main>
   <section id="tab-ov"></section>
   <section id="tab-sk" hidden>
-    <div class="toolbar">
-      <input type="text" id="q" placeholder="搜索名称 / 描述 / skill_id…">
-      <select id="fAgent"><option value="">全部 agent 投影状态</option></select>
-      <select id="fState">
-        <option value="">任意状态</option>
-        <option value="linked">已投影</option>
-        <option value="trial">试用 UL</option>
-        <option value="conflict">冲突</option>
-        <option value="broken">断链</option>
-        <option value="store_drift">中央库漂移</option>
-        <option value="copy_drift">copy 漂移</option>
-        <option value="not_linked">未投影</option>
-      </select>
-      <label class="ck"><input type="checkbox" id="fRisk"> 仅看有风险的</label>
-      <span class="note" id="skCount"></span>
+    <div class="section-head">
+      <h2>中央库</h2>
+      <p>列表检索，或用关系图查看分组、投影、版本与 MCP 连接。</p>
     </div>
-    <div id="skTable"></div>
-    <p class="note"><b>图例:</b>
-      <span class="sdot s-linked"></span>已投影(链接指向中央库)
-      <span class="sdot s-conflict"></span>冲突(目标存在但非本库投影)
-      <span class="sdot s-not_linked"></span>未投影。点击行看详情与各 agent 目标路径。</p>
+    <div class="view-switch" id="skViewSwitch">
+      <button type="button" data-sk-view="list" class="active">列表</button>
+      <button type="button" data-sk-view="graph">关系图</button>
+    </div>
+    <div id="skListPane">
+      <div class="toolbar">
+        <input type="text" id="q" placeholder="搜索名称 / 描述 / skill_id…">
+        <select id="fAgent"><option value="">全部 agent 投影状态</option></select>
+        <select id="fState">
+          <option value="">任意状态</option>
+          <option value="linked">已投影</option>
+          <option value="trial">试用 UL</option>
+          <option value="conflict">冲突</option>
+          <option value="broken">断链</option>
+          <option value="store_drift">中央库漂移</option>
+          <option value="copy_drift">copy 漂移</option>
+          <option value="not_linked">未投影</option>
+        </select>
+        <label class="ck"><input type="checkbox" id="fRisk"> 仅看有风险的</label>
+        <span class="note" id="skCount"></span>
+      </div>
+      <div id="skTable"></div>
+      <p class="note"><b>图例</b>
+        <span class="sdot s-linked"></span>已投影
+        <span class="sdot s-conflict"></span>冲突
+        <span class="sdot s-not_linked"></span>未投影。点击一行查看详情。</p>
+    </div>
+    <div id="skGraph" hidden>
+      <div class="graph-toolbar">
+        <input type="text" id="graphQ" placeholder="搜索 skill / agent / 分组…">
+        <label class="ck"><input type="checkbox" id="graphOrphans" checked> 孤立节点</label>
+        <label class="ck"><input type="checkbox" id="graphGroups" checked> 分组</label>
+        <label class="ck"><input type="checkbox" id="graphVersion" checked> 版本</label>
+        <label class="ck"><input type="checkbox" id="graphMcp" checked> MCP</label>
+        <label class="ck"><input type="checkbox" id="graphLocal"> 仅看关联</label>
+        <label class="graph-size">节点直径 <input type="range" id="graphSize" min="10" max="200" step="5" value="40"> <output id="graphSizeVal">40%</output></label>
+        <label class="graph-size">发光 <input type="range" id="graphGlow" min="0" max="100" step="5" value="55"> <output id="graphGlowVal">55%</output></label>
+        <label class="graph-size">透明度 <input type="range" id="graphAlpha" min="5" max="100" step="5" value="85"> <output id="graphAlphaVal">85%</output></label>
+        <button type="button" id="graphReset" class="smallbtn">复位视图</button>
+        <span id="graphStat"></span>
+      </div>
+      <div class="graph-stage">
+        <div class="graph-canvas-wrap">
+          <canvas id="graphCanvas"></canvas>
+          <div id="graphHint" hidden></div>
+        </div>
+        <aside id="graphInfo"><p class="k">每个 skill 是一个点，已投影到 agent 的画连线。悬停看名称，单击高亮邻居，双击打开详情。</p></aside>
+      </div>
+      <div class="graph-legend">
+        <span><i style="background:#7aa2f7"></i>Agent</span>
+        <span><i style="background:#c0caf5"></i>Skill</span>
+        <span><i style="background:#ff3b30"></i>风险</span>
+        <span><i style="background:#0071e3"></i>分组</span>
+        <span><i style="background:#bb9af7"></i>MCP</span>
+        <span><i style="background:#9ece6a"></i>投影连线</span>
+      </div>
+    </div>
   </section>
   <section id="tab-mc" hidden></section>
   <section id="tab-bk" hidden></section>
@@ -153,15 +271,17 @@
 
 <div id="mask"></div>
 <div id="drawer">
-  <div class="dhead"><h2 id="dTitle"></h2><button id="closeDrawer">✕ 关闭</button></div>
+  <div class="dhead"><h2 id="dTitle"></h2><button id="closeDrawer">关闭</button></div>
   <div class="dbody" id="dBody"></div>
 </div>
 
 <script>
-const AGENT_COLORS={pi:"#a78bfa",codex:"#34d399",opencode:"#fbbf24",workbuddy:"#38bdf8",claude:"#f472b6",grok:"#22d3ee",hermes:"#a3e635"};
+const AGENT_COLORS={pi:"#5e5ce6",codex:"#34c759",opencode:"#ff9f0a",workbuddy:"#64d2ff",claude:"#bf5af2",grok:"#64d2ff",hermes:"#30d158"};
 const STATE_LABEL={linked:"已投影",trial:"试用 UL",conflict:"冲突",not_linked:"未投影",broken:"断链",copy_broken:"copy 断链",copy_drift:"copy 漂移",store_drift:"中央库漂移"};
 let DATA=null, TAB="ov", SORT={key:null,dir:1}, MODEL_SUGGESTIONS=[];
 let DIST_SELECTION_DIRTY=false, DIST_SELECTION_CONFLICT=false;
+let SK_VIEW="list";
+const GRAPH={selected:null, hover:null, view:{x:0,y:0,k:1}, nodes:[], edges:[], nmap:{}, adj:{}, bound:false, alpha:0, raf:null, nodeScale:0.4, glow:0.55, nodeAlpha:0.85};
 
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtSize=n=>n<0?"":n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
@@ -169,13 +289,26 @@ const color=a=>AGENT_COLORS[a]||"#94a3b8";
 
 async function load(){
   try{
-    const r=await fetch("/api/data");
+    const r=await fetch("/api/data",{credentials:"same-origin"});
     const d=await r.json();
     if(!r.ok||d.error)throw new Error(d.error||("HTTP "+r.status));
+    const prevSources=DATA&&DATA.sources, prevModels=DATA&&DATA.models;
     DATA=d;
-    renderChips(); renderOverview(); renderSkills(); renderMcp(); renderBackups(); renderMaintenance(); renderLogs();
+    if(prevSources)DATA.sources=prevSources;
+    if(prevModels)DATA.models=prevModels;
+    const hash=location.hash;
+    if(location.search.includes("token=")) history.replaceState({},"",location.pathname+hash);
+    renderChips(); renderOverview(); renderSkills(); renderMcp(); renderBackups();
+    if(TAB==="mt")renderMaintenance();
+    if(TAB==="lg")renderLogs();
+    if(hash==="#graph"){
+      TAB="sk";
+      document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x.dataset.t==="sk"));
+      ["ov","sk","mc","bk","mt","lg"].forEach(t=>document.getElementById("tab-"+t).hidden=(t!=="sk"));
+      setSkillView("graph");
+    }else if(TAB==="sk"&&SK_VIEW==="graph") renderGraph(true);
   }catch(err){
-    document.getElementById("tab-ov").innerHTML=`<p class="empty">加载失败: ${esc(err.message)}</p>`;
+    document.getElementById("tab-ov").innerHTML=`<p class="empty">加载失败: ${esc(err.message)}。请使用终端打印的带 token 的 URL 打开。</p>`;
   }
 }
 
@@ -184,11 +317,12 @@ function renderChips(){
   const s=DATA.summary;
   document.getElementById("chips").innerHTML=
     `<span class="chip">skills <b>${s.skills}</b></span>`+
-    `<span class="chip">风险 <b style="color:${s.risky?"#fca5a5":"inherit"}">${s.risky}</b></span>`+
+    `<span class="chip">风险 <b style="color:${s.risky?"#ff453a":"inherit"}">${s.risky}</b></span>`+
     `<span class="chip">agents <b>${s.agents}</b></span>`+
-    `<span class="chip">投影总数 <b style="color:var(--green)">${s.linked_total}</b></span>`+
+    `<span class="chip">投影 <b>${s.linked_total}</b></span>`+
     `<span class="chip">MCP <b>${s.mcp_servers}</b></span>`+
-    `<span class="chip">备份 <b>${s.backups}</b></span>`;
+    `<span class="chip">备份 <b>${s.backups}</b></span>`+
+    (DATA.read_only?`<span class="chip"><b style="color:var(--amber)">只读</b></span>`:"");
   document.getElementById("genat").textContent="生成于 "+DATA.generated_at;
   const p=DATA.paths;
   document.getElementById("paths").innerHTML=
@@ -198,7 +332,9 @@ function renderChips(){
 /* ---------- 概览 ---------- */
 function renderOverview(){
   const el=document.getElementById("tab-ov");
-  el.innerHTML=`<div class="cards">`+DATA.agents.map(a=>{
+  el.innerHTML=`<div class="section-head"><h2>Agents</h2>
+    <p>每个运行时一份投影目录。数字是当前中央库里的状态，不是扫描缓存。</p></div>
+  <div class="cards">`+DATA.agents.map(a=>{
     const tot=Math.max(a.total_in_store,1);
     const pct=(n)=>(n/tot*100).toFixed(1)+"%";
     const dirOk=a.dir_exists?`<span class="badge ok">目录存在</span>`:`<span class="badge warn">目录未创建</span>`;
@@ -208,22 +344,19 @@ function renderOverview(){
           <span class="badge ${a.mode==="copy"?"copy":""}">${a.mode}${a.nested?" · nested":""}</span></h3>
       <div class="dir">${esc(a.skill_dir)}</div>
       <div class="nums">
-        <span style="color:var(--green)"><b>${a.linked}</b>已投影</span>
-        <span style="color:var(--amber)"><b>${a.conflict}</b>冲突</span>
-        <span style="color:var(--muted)"><b>${a.not_linked}</b>未投影</span>
-        <span style="color:var(--red)"><b>${a.store_drift}</b>中央库漂移</span>
+        <span><b>${a.linked}</b>已投影</span>
+        <span><b>${a.conflict}</b>冲突</span>
+        <span><b>${a.not_linked}</b>未投影</span>
+        <span><b>${a.store_drift}</b>漂移</span>
       </div>
       <div class="bar">
         <i style="width:${pct(a.linked)};background:var(--green)"></i>
         <i style="width:${pct(a.conflict)};background:var(--amber)"></i>
       </div>
-      <div class="meta">${dirOk} ${mcp} <span class="badge">中央库 ${a.total_in_store} 个</span></div>
+      <div class="meta">${dirOk} ${mcp} <span class="badge">中央库 ${a.total_in_store}</span></div>
     </div>`;
   }).join("")+`</div>
-  <p class="note"><b>说明:</b> 已投影 = agent 目录里的条目是指向中央库的软链(symlink 模式)或经标记验证的 copy;
-  冲突 = 目标已有非本库内容, 需 --force; broken = 指向本库但中央库副本已缺失；中央库漂移需先修复或重新导入。
-  写操作: 在中央库详情里可对单个 agent 执行 投影/解除 (走与 CLI 相同的备份与门禁逻辑);
-  批量与导入仍用 CLI (<span class="mono">skillhub link / import</span>)。</p>`;
+  <p class="note">已投影指向中央库；冲突需确认后替换。写操作先预览。GUI 不能 --allow-risky，全库 rollback 请用 CLI。只读模式：<span class="mono">skillhub gui --read-only</span></p>`;
 }
 
 /* ---------- skills ---------- */
@@ -320,14 +453,17 @@ function renderSkillDrawer(sid,d){
       const isOurs=(st==="linked"||st==="copy"||st==="broken");
       const act=isOurs?"unlink":"link";
       const needF=(act==="link"&&st==="conflict");
+      const gated=!isOurs&&(m.risks||[]).some(r=>(DATA.risk_gate||[]).includes(r));
       const lbl=isOurs?"解除":(needF?"投影(替换)":"投影");
+      const btn=DATA.read_only?"":gated?`<span class="note">风险门禁，请用 CLI --allow-risky</span>`:
+        `<button style="padding:2px 10px;font-size:12px"
+                data-proj-sid="${esc(sid)}" data-proj-agent="${esc(a.name)}" data-proj-state="${esc(st)}">${lbl}</button>`;
       return `<div class="projline">
         <span class="sdot s-${st}" title="${STATE_LABEL[st]||st}"></span>
         <span style="color:${color(a.name)};width:86px;flex:none">${esc(a.name)}</span>
         <span class="mono" style="flex:1">${esc(p.target)}</span>
-        <button style="padding:2px 10px;font-size:12px"
-                data-proj-sid="${esc(sid)}" data-proj-agent="${esc(a.name)}" data-proj-state="${esc(st)}">${lbl}</button></div>`}).join("")}
-    <p class="note">投影走正常备份/冲突/风险门禁流程; 冲突项会先确认再备份替换; broken 需先修复中央库。</p>
+        ${btn}</div>`}).join("")}
+    <p class="note">投影先预览再确认; 冲突项会备份后替换; GUI 不能绕过风险门禁; broken 需先修复中央库。</p>
     <div class="sect">版本与维护</div>
     <div class="formrow">
       ${m.channel==="ul"?`<button class="smallbtn" data-refresh-ul-sid="${esc(sid)}">刷新外部编辑摘要</button><button class="smallbtn" data-publish-sid="${esc(sid)}">预览并发布为正式版</button>`:`<button class="smallbtn" data-create-ul-sid="${esc(sid)}">创建独立 ul 试用版</button>`}
@@ -349,12 +485,20 @@ function closeDrawer(){
   document.getElementById("drawer").classList.remove("open");
   document.getElementById("mask").classList.remove("show");
 }
-async function postPreviewThenApply(url,payload,label){
-  const preview=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,apply:false})});
+async function postPreviewThenApply(url,payload,label,phrase){
+  if(DATA&&DATA.read_only){alert("GUI 处于只读模式，写操作已禁用");return null}
+  const preview=await fetch(url,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,apply:false})});
   const pd=await preview.json();
   if(!preview.ok||pd.error)throw new Error(pd.error||"预览失败");
-  if(!confirm(`${label}\n\n${JSON.stringify(pd,null,2).slice(0,1800)}\n\n确认执行？`))return null;
-  const applied=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,apply:true,confirm:true})});
+  const plan=JSON.stringify(pd,null,2);
+  if(!confirm(`${label}\n\n${plan.length>12000?plan.slice(0,12000)+"\n…":plan}\n\n确认执行？`))return null;
+  const body={...payload,apply:true,confirm:true};
+  if(phrase){
+    const typed=prompt(`这是高风险写操作。请输入 ${phrase} 确认：`);
+    if(typed!==phrase){alert("确认短语不匹配，已取消");return null}
+    body.confirm_phrase=phrase;
+  }
+  const applied=await fetch(url,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const ad=await applied.json();
   if(!applied.ok||ad.error)throw new Error(ad.error||"执行失败");
   return ad;
@@ -389,30 +533,25 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer()});
 
 /* ---------- 写操作: 投影 / 解除 ---------- */
 async function proj(sid, agent, state){
+  if(DATA&&DATA.read_only){alert("GUI 处于只读模式，写操作已禁用");return}
   const isOurs=["linked","broken","copy_broken"].includes(state);
   const act=isOurs?"unlink":"link";
   let force=false;
-  if(act==="unlink" && !confirm(`解除 ${agent} 上的投影?\n(只移除投影, 不动中央库副本)`)) return;
-  if(act==="link" && state==="conflict" &&
-     !confirm(`${agent} 上已有非本库内容, 将先备份到 backups/ 再替换, 继续?`)) return;
-  if(act==="link" && state==="conflict") force=true;
-  if(act==="link" && state==="copy_drift" &&
-     !confirm(`${agent} 上的 copy 已被修改, 将备份后替换, 继续?`)) return;
-  if(act==="link" && state==="copy_drift") force=true;
   if(act==="link" && ["broken","copy_broken"].includes(state)){
-    alert("中央库副本已缺失 (悬空链接), 请先 import 或 rollback 修复中央库。");
+    alert("中央库副本已缺失 (悬空链接), 请先 import 或用 CLI rollback 修复中央库。");
     return;
   }
   if(state==="store_drift"){
     alert("中央库副本与索引摘要不一致，请先恢复或重新导入中央库。");
     return;
   }
+  if(act==="link" && (state==="conflict"||state==="copy_drift")) force=true;
   try{
-    const r=await fetch("/api/"+act,{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({sid, agents:[agent], force, apply:true})});
-    const d=await r.json();
-    if(!r.ok||d.error)throw new Error(d.error||("HTTP "+r.status));
-    const acts=(d.actions&&d.actions[agent])||[];
+    const ad=await postPreviewThenApply("/api/"+act,{sid,agents:[agent],force},
+      act==="unlink"?`解除 ${agent} 上的投影（只移除投影，不动中央库）`:
+      force?`投影到 ${agent}（将备份后替换已有非本库内容）`:`投影到 ${agent}`);
+    if(!ad)return;
+    const acts=(ad.actions&&ad.actions[agent])||[];
     const bad=acts.filter(a=>["error","conflict","copy_drift","store_drift","blocked","broken"].includes(a.type));
     if(bad.length)alert("未完成: "+bad.map(a=>a.detail).join("; "));
     await load();
@@ -459,7 +598,7 @@ document.getElementById("dBody").addEventListener("click",e=>{
   const refreshUl=e.target.closest("[data-refresh-ul-sid]");
   if(refreshUl){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/refresh",{sid:refreshUl.dataset.refreshUlSid},"刷新外部编辑后的 ul 摘要");if(ad){await load();openSkill(ad.sid||refreshUl.dataset.refreshUlSid)}}catch(err){alert(err.message)}})();return}
   const publish=e.target.closest("[data-publish-sid]");
-  if(publish){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/publish",{sid:publish.dataset.publishSid},"发布 ul 为正式版");if(ad){await load();openSkill(ad.new_formal_sid||publish.dataset.publishSid)}}catch(err){alert(err.message)}})();return}
+  if(publish){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/publish",{sid:publish.dataset.publishSid},"发布 ul 为正式版","PUBLISH");if(ad){await load();openSkill(ad.new_formal_sid||publish.dataset.publishSid)}}catch(err){alert(err.message)}})();return}
   const rename=e.target.closest("[data-rename-sid]");
   if(rename){(async()=>{try{const ad=await postPreviewThenApply("/api/skill/rename",{sid:rename.dataset.renameSid,name:document.getElementById("rename-"+rename.dataset.renameSid).value},"改名并保留来源");if(ad){await load();openSkill(ad.sid)}}catch(err){alert(err.message)}})();return}
   const trial=e.target.closest("[data-trial-sid]");
@@ -477,13 +616,13 @@ document.getElementById("tab-mc").addEventListener("click",e=>{
     const row=save.closest("[data-mcp-row]"); const field=name=>row.querySelector(`[data-mcp-field="${name}"]`);
     const s=DATA.mcp_servers.find(item=>item.id===save.dataset.mcpSave); const changes={label:field("label").value,enabled:field("enabled").checked};
     if(s.transport==="http")changes.url=field("url").value;
-    else {changes.command=field("command").value;changes.args=field("args").value.split("\n").map(x=>x.trim()).filter(Boolean)}
+    // command/args 只能通过 CLI 修改
     const refs=(name,label)=>{const output={};for(const line of field(name).value.split("\n")){const value=line.trim();if(!value)continue;const pos=value.indexOf("=");if(pos<1)throw new Error(label+" 必须使用 NAME=环境引用格式");const key=value.slice(0,pos).trim(), ref=value.slice(pos+1).trim();if(!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(key)||!/^(?:\{\{env:[A-Za-z_][A-Za-z0-9_]*\}\}|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\{env:[A-Za-z_][A-Za-z0-9_]*\}|Bearer\s+\{\{env:[A-Za-z_][A-Za-z0-9_]*\}\})$/.test(ref))throw new Error(label+" 只能填写完整的环境变量引用");output[key]=ref}return output};
     const env=refs("env_refs","环境引用"), headers=refs("header_refs","请求头引用"); if(Object.keys(env).length)changes.env_refs=env;if(Object.keys(headers).length)changes.header_refs=headers;
     const ad=await postPreviewThenApply("/api/mcp/edit",{sid:save.dataset.mcpSave,changes},"保存 MCP 字段");if(ad)load();
   }catch(err){alert(err.message)}})();return}
   const gen=e.target.closest("[data-mcp-generate]");
-  if(gen){const row=gen.closest("[data-mcp-row]");const agents=[...row.querySelectorAll("[data-mcp-target]:checked")].map(x=>x.dataset.agent);if(!agents.length){alert("请先选择至少一个目标 agent");return}(async()=>{try{const ad=await postPreviewThenApply("/api/mcp/generate",{sid:gen.dataset.mcpGenerate,agents},"生成 MCP 配置");if(ad)load()}catch(err){alert(err.message)}})()}
+  if(gen){const row=gen.closest("[data-mcp-row]");const agents=[...row.querySelectorAll("[data-mcp-target]:checked")].map(x=>x.dataset.agent);if(!agents.length){alert("请先选择至少一个目标 agent");return}(async()=>{try{const ad=await postPreviewThenApply("/api/mcp/generate",{sid:gen.dataset.mcpGenerate,agents},"生成 MCP 配置到所选 agent","GENERATE");if(ad)load()}catch(err){alert(err.message)}})()}
 });
 document.getElementById("tab-bk").addEventListener("click",e=>{
   const restore=e.target.closest("[data-trash-restore]");
@@ -491,11 +630,9 @@ document.getElementById("tab-bk").addEventListener("click",e=>{
   const retain=e.target.closest("[data-trash-retain]");
   if(retain){(async()=>{try{const retained=retain.dataset.trashRetained==="true";const ad=await postPreviewThenApply("/api/trash/retain",{entry:retain.dataset.trashRetain,retained},retained?"手动保留回收项":"取消回收项保留");if(ad)load()}catch(err){alert(err.message)}})();return}
   const cleanup=e.target.closest("[data-trash-cleanup]");
-  if(cleanup){(async()=>{try{const ad=await postPreviewThenApply("/api/trash/cleanup",{confirm:true},"清理已到期且未保留的回收项");if(ad)load()}catch(err){alert(err.message)}})();return}
-  const backupRollback=e.target.closest("[data-backup-rollback]");
-  if(backupRollback){(async()=>{try{const ad=await postPreviewThenApply("/api/backups/rollback",{ts:backupRollback.dataset.backupRollback},"恢复选中的中央库备份快照");if(ad)load()}catch(err){alert(err.message)}})();return}
+  if(cleanup){(async()=>{try{const ad=await postPreviewThenApply("/api/trash/cleanup",{confirm:true},"清理已到期且未保留的回收项","CLEANUP");if(ad)load()}catch(err){alert(err.message)}})();return}
   const backupCleanup=e.target.closest("[data-backup-cleanup]");
-  if(backupCleanup){(async()=>{try{const keep=Number(document.getElementById("backupKeep").value);if(!Number.isInteger(keep)||keep<1){alert("保留份数必须是正整数");return}const ad=await postPreviewThenApply("/api/backups/cleanup",{keep},"清理旧备份快照");if(ad)load()}catch(err){alert(err.message)}})();return}
+  if(backupCleanup){(async()=>{try{const keep=Number(document.getElementById("backupKeep").value);if(!Number.isInteger(keep)||keep<1){alert("保留份数必须是正整数");return}const ad=await postPreviewThenApply("/api/backups/cleanup",{keep},"清理旧备份快照","CLEANUP");if(ad)load()}catch(err){alert(err.message)}})();return}
 });
 
 /* ---------- CSV 导出 ---------- */
@@ -537,15 +674,15 @@ function renderMcp(){
       <span class="spacer"></span><label class="ck"><input type="checkbox" data-mcp-field="enabled" ${s.enabled?"checked":""}>启用</label></div>
     <div class="formrow"><label>标签 <input type="text" data-mcp-field="label" value="${esc(s.label||"")}" style="max-width:220px"></label>
       ${s.transport==="http"?`<label style="flex:1;min-width:260px">URL <input type="text" data-mcp-field="url" value="${esc(s.url||"")}" style="width:100%"></label>`:
-        `<label>命令 <input type="text" data-mcp-field="command" value="${esc(s.command||"")}" style="min-width:220px"></label>`}</div>
-    ${s.transport==="stdio"?`<label style="display:block">参数（每行一个）<textarea data-mcp-field="args" style="width:100%;min-height:70px;font:12px var(--mono)">${esc((s.args||[]).join("\n"))}</textarea></label>`:""}
+        `<span class="note">命令 <span class="mono">${esc(s.command||"")}</span>（GUI 只读，改 command 请用 CLI）</span>`}</div>
+    ${s.transport==="stdio"?`<label style="display:block">参数（只读）<pre class="filelist">${esc((s.args||[]).join("\n"))||"（无）"}</pre></label>`:""}
     <div class="formrow"><label style="flex:1;min-width:220px">环境引用（每行 <span class="mono">NAME={{env:VAR}}</span>）<textarea data-mcp-field="env_refs" style="width:100%;min-height:70px;font:12px var(--mono)">${esc(mcpRefLines(s.env_refs))}</textarea></label>
       <label style="flex:1;min-width:220px">请求头引用（每行 <span class="mono">Header={{env:VAR}}</span>）<textarea data-mcp-field="header_refs" style="width:100%;min-height:70px;font:12px var(--mono)">${esc(mcpRefLines(s.header_refs))}</textarea></label></div>
     <div class="formrow"><span>生成目标：</span>${targets.map(a=>`<label class="ck"><input type="checkbox" data-mcp-target data-agent="${esc(a.name)}" ${((s.agents||[]).includes(a.name)?"checked":"")}>${esc(a.name)}</label>`).join("")||"<span class=note>没有可用目标 agent</span>"}
       <button class="smallbtn" data-mcp-save="${esc(s.id)}">预览保存字段</button><button class="smallbtn" data-mcp-generate="${esc(s.id)}">预览生成</button></div>
     <p class="note">明文密钥不会回显；这里只能追加/更新环境变量引用。保存与生成都需要预览后确认。</p>
   </div>`).join("");
-  el.innerHTML=importPanel+(serverPanels||`<p class="empty">中央库还没有 MCP server 定义。</p>`);
+  el.innerHTML=`<div class="section-head"><h2>MCP</h2><p>中央定义只存环境引用。command 与 args 请用 CLI 修改。</p></div>`+importPanel+(serverPanels||`<p class="empty">中央库还没有 MCP server 定义。</p>`);
 }
 
 /* ---------- 备份 ---------- */
@@ -554,7 +691,7 @@ function renderBackups(){
   const trash=DATA.trash||[];
   const backupRows=(DATA.backups||[]).map(b=>{
     const recovery=b.kind==="skill_publish"?`<span class="note">发布备份：旧正式版已在下方单 skill 回收区，可用“恢复”；不使用全库恢复。</span>`:
-      b.complete?`<button class="smallbtn" data-backup-rollback="${esc(b.ts)}">预览恢复此快照</button>`:`<span class="note">快照不完整，不可恢复</span>`;
+      `<span class="note">全库回滚请用 CLI：<span class="mono">skillhub rollback ${esc(b.ts)} --apply</span></span>`;
     return `<tr style="cursor:default"><td class="mono"><b>${esc(b.ts)}</b><div class="note">${esc(b.kind||"unknown")}</div></td><td>${fmtSize(b.size)}</td>
       <td>${b.has_conflicts?`<span class="risk">含被替换的冲突目录</span>`:`<span class="badge">可验证</span>`}</td><td>${recovery}</td></tr>`;
   }).join("");
@@ -562,15 +699,25 @@ function renderBackups(){
     (trash.length?`<table><thead><tr><th>回收项</th><th>skill</th><th>原因</th><th>截止</th><th>操作</th></tr></thead><tbody>`+
       trash.map(t=>`<tr><td class="mono">${esc(t.id)}</td><td>${esc(t.name||t.sid||"")}</td><td>${esc(t.reason||"")}${t.retained?` <span class="badge ok">已保留</span>`:""}</td><td>${esc(t.retain_until||t.error||"")}</td><td>${t.valid?`<button class="smallbtn" data-trash-restore="${esc(t.id)}">恢复</button><button class="smallbtn" data-trash-retain="${esc(t.id)}" data-trash-retained="${t.retained?"false":"true"}">${t.retained?"取消保留":"保留"}</button>`:"不可验证"}</td></tr>`).join("")+`</tbody></table>`:`<p class="note">回收区为空。</p>`)+
     `<div class="formrow"><button data-trash-cleanup>预览并清理到期项</button></div>`;
-  el.innerHTML=`<div class="panel"><h3>备份快照</h3>${backupRows?`<table><thead><tr><th>时间戳</th><th>大小</th><th>内容</th><th>恢复</th></tr></thead><tbody>${backupRows}</tbody></table>`:`<p class="empty">还没有备份。</p>`}
+  el.innerHTML=`<div class="section-head"><h2>备份</h2><p>全库回滚走 CLI。这里只处理单 skill 回收区。</p></div>
+    <div class="panel"><h3>快照</h3>${backupRows?`<table><thead><tr><th>时间戳</th><th>大小</th><th>内容</th><th>恢复</th></tr></thead><tbody>${backupRows}</tbody></table>`:`<p class="empty">还没有备份。</p>`}
     <div class="formrow"><label>保留最近 <input id="backupKeep" type="number" min="1" max="10000" value="3" style="width:80px"> 份</label><button data-backup-cleanup>预览清理旧备份</button></div>
-    <p class="note">标准快照可在此恢复；发布快照只用于定位下方对应的单 skill 回收项。备份目录 <span class="mono">${esc(DATA.paths.backups)}</span></p></div>
+    <p class="note">GUI 只做单 skill 回收区恢复；全库快照回滚请用 CLI。备份目录 <span class="mono">${esc(DATA.paths.backups)}</span></p></div>
     <div class="panel">${trashHtml}</div>`;
 }
 
 /* ---------- 导入 / 分组 / 分发 ---------- */
 function renderMaintenance(){
   const el=document.getElementById("tab-mt");
+  if(!DATA.sources){
+    el.innerHTML=`<p class="note">加载可导入来源…</p>`;
+    fetch("/api/sources",{credentials:"same-origin"}).then(r=>r.json()).then(d=>{
+      if(d.error)throw new Error(d.error);
+      DATA.sources=d.sources||[];
+      if(TAB==="mt")renderMaintenance();
+    }).catch(err=>{el.innerHTML=`<p class="empty">加载来源失败: ${esc(err.message)}</p>`});
+    return;
+  }
   const sourceRows=(DATA.sources||[]).map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.agent)}</td><td class="mono">${esc(s.path)}</td><td>${s.error?`<span class="danger">${esc(s.error)}</span>`:`<button class="smallbtn" data-import-agent="${esc(s.agent)}" data-import-path="${esc(s.path)}">预览导入</button>`}</td></tr>`).join("");
   const groups=Object.entries(DATA.groups||{});
   const skillChoices=(selector)=>DATA.skills.map(s=>`<label class="ck choice-item" draggable="true" data-drag-sid="${esc(s.id)}" data-search="${esc((s.name+" "+s.desc).toLowerCase())}"><input type="checkbox" ${selector(s)}>${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("");
@@ -581,7 +728,8 @@ function renderMaintenance(){
   </div>`).join("")||`<p class="note">暂无分组。先用名称创建一个分组。</p>`;
   const distGroupChoices=groups.map(([gid,g])=>`<label class="ck choice-item" data-search="${esc((g.name||gid).toLowerCase())}"><input type="checkbox" data-dist-group="${esc(gid)}">${esc(g.name||gid)} <span class="note">已保存 ${(g.members||[]).length} 个 skill</span></label>`).join("")||`<span class="note">暂无分组</span>`;
   const distSkillChoices=DATA.skills.map(s=>`<label class="ck choice-item" data-search="${esc((s.name+" "+s.desc).toLowerCase())}"><input type="checkbox" data-dist-sid="${esc(s.id)}">${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("")||`<span class="note">暂无 skill</span>`;
-  el.innerHTML=`<div class="panel"><h3>来源与同名版本</h3><p class="note">来源来自可发现的 agent 目录；同名不同摘要会共存，可先导入、再在 Skills 详情中比较/改名。导入写入前会先预览。</p><table><thead><tr><th>名称</th><th>来源</th><th>路径</th><th>操作</th></tr></thead><tbody>${sourceRows||`<tr><td colspan="4">没有可导入来源</td></tr>`}</tbody></table></div>
+  el.innerHTML=`<div class="section-head"><h2>导入与分发</h2><p>分组关系先保存在中央库。真正写 agent 只发生在你确认分发之后。</p></div>
+  <div class="panel"><h3>来源与同名版本</h3><p class="note">来源来自可发现的 agent 目录；同名不同摘要会共存，可先导入、再在 Skills 详情中比较/改名。导入写入前会先预览。</p><table><thead><tr><th>名称</th><th>来源</th><th>路径</th><th>操作</th></tr></thead><tbody>${sourceRows||`<tr><td colspan="4">没有可导入来源</td></tr>`}</tbody></table></div>
   <div class="panel"><h3>分组</h3><div class="formrow"><input id="groupName" placeholder="新分组名称"><button data-create-group>用勾选 skill 创建分组</button></div><div class="formrow"><input id="createSkillSearch" placeholder="搜索要加入新分组的 skill"><div id="createSkillChoices" class="choice-grid">${skillChoices(s=>`data-create-group-sid="${esc(s.id)}"`)}</div></div>${groupRows}</div>
   <div class="panel"><h3>分发（仅在明确确认后写 agent）</h3><p class="note">按名称选择已保存分组或单个 skill；不需要记住 group id / skill id。来源选择会按 agent 保存，选择 agent 后自动回填。分组成员变化不会自动写 agent，下一次预览会按当前分组成员和仍保存的单个 skill 重新计算。</p><div class="formrow"><input id="distGroupSearch" placeholder="搜索分组名称"><div id="distGroupChoices" class="choice-grid">${distGroupChoices}</div></div><div id="distGroupSelected" class="note">已选分组：无</div><div class="formrow"><input id="distSkillSearch" placeholder="搜索单个 skill 名称或描述"><div id="distSkillChoices" class="choice-grid">${distSkillChoices}</div></div><div id="distSkillSelected" class="note">已选 skill：无</div><div class="formrow">${DATA.agents.map(a=>`<label class="ck"><input type="checkbox" data-dist-agent="${esc(a.name)}">${esc(a.name)}</label>`).join("")}<label class="ck"><input type="checkbox" id="distReplace">按选择移除不再需要的本库投影</label><button data-distribute>预览分发</button></div><div id="distSaved" class="note">选择 agent 后显示已保存来源选择。</div><div id="distProjection" class="note">当前投影结果：选择 agent 后显示。</div><p class="note">去重按投影目标；多 agent 的已保存来源不同会明确提示，需先手动选出一套共同来源再预览。非 skillhub 管理项不会被移除。</p></div>`;
   const bindSearch=(inputId,containerId)=>{const input=document.getElementById(inputId),container=document.getElementById(containerId);if(!input||!container)return;input.addEventListener("input",()=>{const q=input.value.trim().toLowerCase();container.querySelectorAll(".choice-item").forEach(item=>{item.style.display=!q||item.dataset.search.includes(q)?"":"none"})})};
@@ -598,7 +746,7 @@ document.getElementById("tab-mt").addEventListener("click",e=>{
   const deleteGroup=e.target.closest("[data-delete-group]");
   if(deleteGroup){(async()=>{try{const ad=await postPreviewThenApply("/api/groups/delete",{group_id:deleteGroup.dataset.deleteGroup},"删除分组（不删除 skill）");if(ad)load()}catch(err){alert(err.message)}})();return}
   const dist=e.target.closest("[data-distribute]");
-  if(dist){(async()=>{try{const agents=[...document.querySelectorAll("[data-dist-agent]:checked")].map(x=>x.dataset.distAgent);const groups=[...document.querySelectorAll("[data-dist-group]:checked")].map(x=>x.dataset.distGroup);const sids=[...document.querySelectorAll("[data-dist-sid]:checked")].map(x=>x.dataset.distSid);if(!agents.length){alert("请先选择至少一个目标 agent");return}if(DIST_SELECTION_CONFLICT&&!DIST_SELECTION_DIRTY){alert("选中 agent 的已保存来源不同，请先手动选出一套共同的分组/skill 后再预览");return}if(!groups.length&&!sids.length&&!DIST_SELECTION_DIRTY){alert("请至少选择一个分组或单个 skill；若要清空来源，请先取消勾选后再预览");return}const ad=await postPreviewThenApply("/api/distribute",{agents,groups,sids,replace:document.getElementById("distReplace").checked},"预览并分发已选择的 skill");if(ad)load()}catch(err){alert(err.message)}})()}
+  if(dist){(async()=>{try{const agents=[...document.querySelectorAll("[data-dist-agent]:checked")].map(x=>x.dataset.distAgent);const groups=[...document.querySelectorAll("[data-dist-group]:checked")].map(x=>x.dataset.distGroup);const sids=[...document.querySelectorAll("[data-dist-sid]:checked")].map(x=>x.dataset.distSid);if(!agents.length){alert("请先选择至少一个目标 agent");return}if(DIST_SELECTION_CONFLICT&&!DIST_SELECTION_DIRTY){alert("选中 agent 的已保存来源不同，请先手动选出一套共同的分组/skill 后再预览");return}if(!groups.length&&!sids.length&&!DIST_SELECTION_DIRTY){alert("请至少选择一个分组或单个 skill；若要清空来源，请先取消勾选后再预览");return}const replace=document.getElementById("distReplace").checked;const ad=await postPreviewThenApply("/api/distribute",{agents,groups,sids,replace},replace?"分发并移除未选中的本库投影":"预览并分发已选择的 skill",replace?"REPLACE":undefined);if(ad)load()}catch(err){alert(err.message)}})()}
 });
 function savedDistributionSource(agent){
   const raw=(DATA.distribution_sources||{})[agent]||{};
@@ -659,11 +807,21 @@ document.getElementById("tab-mt").addEventListener("drop",e=>{
 /* ---------- 日志 / 设置 / 模型 ---------- */
 function renderLogs(){
   const el=document.getElementById("tab-lg");
+  if(!DATA.models){
+    el.innerHTML=`<p class="note">加载模型发现结果…</p>`;
+    fetch("/api/models",{credentials:"same-origin"}).then(r=>r.json()).then(d=>{
+      if(d.error)throw new Error(d.error);
+      DATA.models=d;
+      if(TAB==="lg")renderLogs();
+    }).catch(err=>{el.innerHTML=`<p class="empty">加载模型失败: ${esc(err.message)}</p>`});
+    return;
+  }
   const modelRows=(DATA.models?.agents||[]).map(m=>`<tr><td>${esc(m.agent)}</td><td>${m.available?esc(m.models.join(", ")):"—"}</td><td>${esc(m.reason)}</td></tr>`).join("");
   const logs=(DATA.logs||[]).slice().reverse().map(x=>`<tr><td class="mono">${esc(x.at)}</td><td>${esc(x.event)}</td><td>${esc(x.status)}</td><td class="mono">${esc(x.sid||"")}</td></tr>`).join("");
   const callable=(DATA.models?.agents||[]).filter(m=>m.callable&&m.models?.length);
   const choices=callable.map(m=>`<option value="${esc(m.agent)}" data-models="${esc(JSON.stringify(m.callable_models||m.models))}">${esc(m.agent)}</option>`).join("");
-  el.innerHTML=`<div class="panel"><h3>模型发现与分组建议</h3><p class="note">只读取实际配置；调用只在用户点击后发生，向模型发送的字段严格是 skill 名称和描述。结果先展示，批量/单项接受都要再次确认；人工分组不会被覆盖，模型失败不会改组。</p><div class="formrow"><select id="modelAgent">${choices||`<option value="">没有可安全调用的本机模型</option>`}</select><select id="modelName"></select><button data-model-suggest ${callable.length?"":"disabled"}>生成分组建议</button></div><div class="formrow">${DATA.skills.map(s=>`<label class="ck"><input type="checkbox" data-model-sid="${esc(s.id)}">${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("")}</div><div id="modelSuggestions"></div><table><thead><tr><th>agent</th><th>模型</th><th>限制</th></tr></thead><tbody>${modelRows||`<tr><td colspan="3">无</td></tr>`}</tbody></table></div>
+  el.innerHTML=`<div class="section-head"><h2>设置</h2><p>模型建议只发送名称和描述。密钥不会出现在这个页面。</p></div>
+  <div class="panel"><h3>模型发现与分组建议</h3><p class="note">只读取实际配置；调用只在用户点击后发生，向模型发送的字段严格是 skill 名称和描述。结果先展示，批量/单项接受都要再次确认；人工分组不会被覆盖，模型失败不会改组。</p><div class="formrow"><select id="modelAgent">${choices||`<option value="">没有可安全调用的本机模型</option>`}</select><select id="modelName"></select><button data-model-suggest ${callable.length?"":"disabled"}>生成分组建议</button></div><div class="formrow">${DATA.skills.map(s=>`<label class="ck"><input type="checkbox" data-model-sid="${esc(s.id)}">${esc(s.name)} <span class="mono">${esc(s.channel||"formal")}</span></label>`).join("")}</div><div id="modelSuggestions"></div><table><thead><tr><th>agent</th><th>模型</th><th>限制</th></tr></thead><tbody>${modelRows||`<tr><td colspan="3">无</td></tr>`}</tbody></table></div>
   <div class="panel"><h3>设置</h3><div class="formrow"><label>回收保留天数 <input id="retentionDays" type="number" min="1" value="${esc(DATA.settings?.trash_retention_days||7)}"></label><button data-save-settings>预览并保存</button></div><p class="note">设置保存是明确写操作；GUI 启动/刷新不会自动清理回收区。</p></div>
   <div class="panel"><h3>审计日志</h3><table><thead><tr><th>时间</th><th>事件</th><th>状态</th><th>skill</th></tr></thead><tbody>${logs||`<tr><td colspan="4">暂无日志</td></tr>`}</tbody></table></div>`;
   const agentSelect=document.getElementById("modelAgent");
@@ -690,13 +848,462 @@ document.getElementById("tab-lg").addEventListener("click",e=>{
   if(save){(async()=>{try{const ad=await postPreviewThenApply("/api/settings",{settings:{trash_retention_days:Number(document.getElementById("retentionDays").value)}},"保存 skillhub 设置");if(ad)load()}catch(err){alert(err.message)}})()}
 });
 
+/* ---------- 中央库关系图（Obsidian 式） ---------- */
+const EDGE_COLOR={member:"#3d59a1",dist:"#7aa2f7",mcp:"#bb9af7",version:"#e0af68",
+  linked:"#9ece6a",trial:"#7dcfff",conflict:"#e0af68",broken:"#f7768e",
+  copy_broken:"#f7768e",copy_drift:"#ff9e64",store_drift:"#e0af68",source:"#565f89"};
+const EDGE_LABEL={member:"分组成员",dist:"分发来源",mcp:"MCP 目标",version:"formal ↔ ul",
+  linked:"已投影",trial:"试用 UL",conflict:"冲突",broken:"断链",copy_broken:"copy 断链",
+  copy_drift:"copy 漂移",store_drift:"已投影（中央库漂移）",source:"导入来源"};
+const MAPPED={linked:1,copy:1,trial:1,conflict:1,broken:1,copy_broken:1,copy_drift:1,store_drift:1};
+const CAT_PALETTE=["#7aa2f7","#9ece6a","#bb9af7","#7dcfff","#e0af68","#f7768e","#73daca","#ff9e64","#2ac3de","#c0caf5","#9d7cd8","#e0de71"];
+function catColor(name){
+  let h=2166136261;
+  for(const ch of String(name||"")) h=Math.imul(h^ch.charCodeAt(0),16777619);
+  return CAT_PALETTE[(h>>>0)%CAT_PALETTE.length];
+}
+
+function setSkillView(view){
+  SK_VIEW=view;
+  document.getElementById("skListPane").hidden=view!=="list";
+  document.getElementById("skGraph").hidden=view!=="graph";
+  document.querySelectorAll("[data-sk-view]").forEach(b=>b.classList.toggle("active",b.dataset.skView===view));
+  if(view==="graph") requestAnimationFrame(()=>renderGraph(true));
+}
+document.getElementById("skViewSwitch").addEventListener("click",e=>{
+  const b=e.target.closest("[data-sk-view]"); if(b) setSkillView(b.dataset.skView);
+});
+
+function sliderPct(id, fallback, min, max){
+  const el=document.getElementById(id);
+  const pct=el?Number(el.value):fallback;
+  return Number.isFinite(pct)?Math.max(min, Math.min(max, pct)):fallback;
+}
+function setSliderLabel(id, pct){
+  const el=document.getElementById(id);
+  if(el) el.textContent=pct+"%";
+}
+function applyGraphStyle(){
+  const size=sliderPct("graphSize",40,10,200);
+  const glow=sliderPct("graphGlow",55,0,100);
+  const alpha=sliderPct("graphAlpha",85,5,100);
+  GRAPH.nodeScale=size/100;
+  GRAPH.glow=glow/100;
+  GRAPH.nodeAlpha=alpha/100;
+  setSliderLabel("graphSizeVal", size);
+  setSliderLabel("graphGlowVal", glow);
+  setSliderLabel("graphAlphaVal", alpha);
+  GRAPH.nodes.forEach(n=>{ if(n.baseR) n.r=n.baseR*GRAPH.nodeScale; });
+}
+function applyNodeScale(){ applyGraphStyle(); }
+function hexRgba(hex, a){
+  const h=String(hex||"#c0caf5").replace("#","");
+  const n=h.length===3?h.split("").map(c=>c+c).join(""):h.padEnd(6,"0");
+  const r=parseInt(n.slice(0,2),16)||192, g=parseInt(n.slice(2,4),16)||202, b=parseInt(n.slice(4,6),16)||245;
+  return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, a))})`;
+}
+
+function graphFilters(){
+  return {
+    q:(document.getElementById("graphQ").value||"").trim().toLowerCase(),
+    orphans:document.getElementById("graphOrphans").checked,
+    groups:document.getElementById("graphGroups").checked,
+    version:document.getElementById("graphVersion").checked,
+    mcp:document.getElementById("graphMcp").checked,
+    local:document.getElementById("graphLocal").checked
+  };
+}
+
+function buildGraphModel(){
+  const f=graphFilters();
+  const nodes=[], edges=[], map={};
+  const scale=GRAPH.nodeScale||0.4;
+  const add=n=>{
+    n.baseR=n.baseR||n.r; n.r=n.baseR*scale;
+    if(!map[n.id]){ map[n.id]=n; nodes.push(n);} return map[n.id];
+  };
+  const link=(a,b,kind)=>{
+    if(!map[a]||!map[b]||a===b) return;
+    edges.push({source:a,target:b,kind});
+  };
+  (DATA.agents||[]).forEach(a=>add({
+    id:"a:"+a.name, type:"agent", label:a.name, color:color(a.name),
+    baseR:16, r:16, charge:280, detail:`${a.mode}${a.nested?" · nested":""}`
+  }));
+  if(f.mcp) (DATA.mcp_servers||[]).forEach(s=>{
+    add({id:"m:"+s.id, type:"mcp", label:s.label||s.id, color:"#bb9af7", baseR:11, r:11, charge:140,
+      detail:(s.transport||"")+" · "+((s.agents||[]).join(", ")||"无目标")});
+    (s.agents||[]).forEach(ag=>link("m:"+s.id,"a:"+ag,"mcp"));
+  });
+  const inGroup={};
+  if(f.groups) Object.entries(DATA.groups||{}).forEach(([gid,g])=>{
+    const members=g.members||[];
+    add({id:"g:"+gid, type:"group", label:g.name||gid, color:"#7aa2f7", baseR:12, r:12, charge:160,
+      count:members.length, detail:members.length+" 个成员"});
+    members.forEach(sid=>{ (inGroup[sid]=inGroup[sid]||[]).push(gid); });
+  });
+  const mappedSids=new Set();
+  (DATA.skills||[]).forEach(s=>{
+    const mapped=Object.entries(s.states||{}).filter(([,st])=>MAPPED[st]);
+    if(mapped.length) mappedSids.add(s.id);
+  });
+  (DATA.skills||[]).forEach(s=>{
+    const qhit=!f.q||(s.name+" "+s.id+" "+(s.desc||"")+" "+(s.category||"")).toLowerCase().includes(f.q);
+    if(!qhit) return;
+    const mapped=Object.entries(s.states||{}).filter(([,st])=>MAPPED[st]);
+    if(!f.orphans && !mapped.length && !(f.groups&&inGroup[s.id])) return;
+    add({id:"s:"+s.id, type:"skill", sid:s.id, label:s.name, category:s.category||"未分类",
+      color: (s.risks&&s.risks.length)?"#f7768e":catColor(s.category||s.name),
+      baseR: mapped.length? 6+Math.min(4,mapped.length):5, r:5, charge:90, risky:!!(s.risks&&s.risks.length),
+      channel:s.channel||"formal",
+      detail:(s.channel||"formal")+" · "+(mapped.length?mapped.map(([ag,st])=>ag+"="+st).join("、"):"未投影")
+        +((s.risks||[]).length?" · "+s.risks.join(","):"")});
+    mapped.forEach(([ag,st])=>link("s:"+s.id,"a:"+ag,st==="copy"?"linked":st));
+    if(f.groups&&inGroup[s.id]) inGroup[s.id].forEach(gid=>link("g:"+gid,"s:"+s.id,"member"));
+  });
+  if(f.version) (DATA.skills||[]).forEach(s=>{
+    if(s.channel==="formal"&&s.ul_sid&&map["s:"+s.id]&&map["s:"+s.ul_sid])
+      link("s:"+s.id,"s:"+s.ul_sid,"version");
+  });
+  if(f.groups) Object.entries(DATA.distribution_sources||{}).forEach(([ag,src])=>{
+    (src.groups||[]).forEach(gid=>link("g:"+gid,"a:"+ag,"dist"));
+    (src.sids||[]).forEach(sid=>link("s:"+sid,"a:"+ag,"dist"));
+  });
+  if(f.local&&GRAPH.selected){
+    const keep=new Set([GRAPH.selected]);
+    edges.forEach(e=>{ if(e.source===GRAPH.selected) keep.add(e.target); if(e.target===GRAPH.selected) keep.add(e.source); });
+    return {nodes:nodes.filter(n=>keep.has(n.id)), edges:edges.filter(e=>keep.has(e.source)&&keep.has(e.target))};
+  }
+  return {nodes,edges};
+}
+
+function placeGraphNodes(nodes,W,H,prev){
+  const cx=W/2, cy=H/2;
+  const agents=nodes.filter(n=>n.type==="agent");
+  const skills=nodes.filter(n=>n.type==="skill");
+  const others=nodes.filter(n=>n.type!=="agent"&&n.type!=="skill");
+  agents.forEach((n,i)=>{
+    if(prev[n.id]){ n.x=prev[n.id].x; n.y=prev[n.id].y; n.pin=prev[n.id].pin; return; }
+    const a=-Math.PI/2+2*Math.PI*i/Math.max(agents.length,1);
+    n.x=cx+Math.cos(a)*Math.min(W,H)*0.34;
+    n.y=cy+Math.sin(a)*Math.min(W,H)*0.34;
+  });
+  skills.forEach((n,i)=>{
+    if(prev[n.id]){ n.x=prev[n.id].x; n.y=prev[n.id].y; n.pin=prev[n.id].pin; return; }
+    const a=2*Math.PI*(i+0.13)/Math.max(skills.length,1);
+    const rad=Math.min(W,H)*(0.08+0.22*(i%7)/7);
+    n.x=cx+Math.cos(a)*rad+(Math.random()-0.5)*8;
+    n.y=cy+Math.sin(a)*rad+(Math.random()-0.5)*8;
+  });
+  others.forEach((n,i,arr)=>{
+    if(prev[n.id]){ n.x=prev[n.id].x; n.y=prev[n.id].y; n.pin=prev[n.id].pin; return; }
+    const a=2*Math.PI*i/Math.max(arr.length,1);
+    n.x=cx+Math.cos(a)*Math.min(W,H)*0.18;
+    n.y=cy+Math.sin(a)*Math.min(W,H)*0.18;
+  });
+}
+
+function graphStep(W,H){
+  const nodes=GRAPH.nodes, edges=GRAPH.edges;
+  const n=nodes.length; if(!n) return;
+  const alpha=GRAPH.alpha;
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      const a=nodes[i], b=nodes[j];
+      let dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy||0.01;
+      const dist=Math.sqrt(d2);
+      const minD=a.r+b.r+8;
+      let f=((a.charge+b.charge)/2)/d2;
+      if(dist<minD) f+= (minD-dist)*0.08;
+      dx=dx/dist*f*alpha; dy=dy/dist*f*alpha;
+      if(!a.pin){ a.x-=dx; a.y-=dy; }
+      if(!b.pin){ b.x+=dx; b.y+=dy; }
+    }
+  }
+  const idx=GRAPH.idx;
+  for(const e of edges){
+    const a=nodes[idx[e.source]], b=nodes[idx[e.target]]; if(!a||!b) continue;
+    let dx=b.x-a.x, dy=b.y-a.y, dist=Math.hypot(dx,dy)||1;
+    const rest=e.kind==="version"?42:e.kind==="member"?56:e.kind==="mcp"?70:108;
+    const f=(dist-rest)*0.035*alpha, fx=dx/dist*f, fy=dy/dist*f;
+    if(!a.pin){ a.x+=fx; a.y+=fy; }
+    if(!b.pin){ b.x-=fx; b.y-=fy; }
+  }
+  for(const n of nodes){
+    if(n.pin) continue;
+    n.x+=(W/2-n.x)*0.015*alpha;
+    n.y+=(H/2-n.y)*0.015*alpha;
+  }
+}
+
+function graphSize(){
+  const canvas=document.getElementById("graphCanvas");
+  const wrap=canvas.parentElement;
+  const cssW=Math.max(320, wrap.clientWidth||900);
+  const cssH=Math.max(320, canvas.clientHeight||640);
+  const dpr=window.devicePixelRatio||1;
+  if(canvas.width!==Math.floor(cssW*dpr)||canvas.height!==Math.floor(cssH*dpr)){
+    canvas.width=Math.floor(cssW*dpr); canvas.height=Math.floor(cssH*dpr);
+    canvas.style.width=cssW+"px"; canvas.style.height=cssH+"px";
+  }
+  return {W:cssW, H:cssH, dpr};
+}
+
+function neighborSet(id){
+  const s=new Set([id]);
+  (GRAPH.edges||[]).forEach(e=>{ if(e.source===id) s.add(e.target); if(e.target===id) s.add(e.source); });
+  return s;
+}
+
+function drawGraph(){
+  const canvas=document.getElementById("graphCanvas"); if(!canvas) return;
+  const {W,H,dpr}=graphSize();
+  const ctx=canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle="#1e1e1e"; ctx.fillRect(0,0,W,H);
+  const {x:vx,y:vy,k}=GRAPH.view;
+  ctx.save();
+  ctx.translate(vx,vy); ctx.scale(k,k);
+  const focus=GRAPH.selected||GRAPH.hover;
+  const neigh=focus?neighborSet(focus):null;
+  const dim=!!focus;
+  GRAPH.edges.forEach(e=>{
+    const a=GRAPH.nmap[e.source], b=GRAPH.nmap[e.target]; if(!a||!b) return;
+    const hot=neigh&&(neigh.has(e.source)&&neigh.has(e.target));
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle=EDGE_COLOR[e.kind]||"#444";
+    ctx.globalAlpha=dim?(hot?0.9:0.06):0.42;
+    ctx.lineWidth=(hot?2.2:1.15)/k;
+    if(e.kind==="version"||e.kind==="dist"||e.kind==="source") ctx.setLineDash([5/k,4/k]);
+    else ctx.setLineDash([]);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  const glow=GRAPH.glow??0.55;
+  const fillA=GRAPH.nodeAlpha??0.85;
+  GRAPH.nodes.forEach(n=>{
+    const hot=!dim||neigh.has(n.id);
+    const dimA=hot?1:0.12;
+    const col=n.color||"#c0caf5";
+    const selected=GRAPH.selected===n.id;
+    const glowBoost=selected||GRAPH.hover===n.id?1.25:1;
+    if(glow>0.01&&hot){
+      const halo=n.r*(1.6+glow*2.8*glowBoost);
+      const grad=ctx.createRadialGradient(n.x,n.y,Math.max(0.2,n.r*0.15), n.x,n.y,halo);
+      grad.addColorStop(0, hexRgba(col, 0.65*glow*fillA*dimA));
+      grad.addColorStop(0.35, hexRgba(col, 0.28*glow*fillA*dimA));
+      grad.addColorStop(1, hexRgba(col, 0));
+      ctx.globalAlpha=1;
+      ctx.fillStyle=grad;
+      ctx.beginPath(); ctx.arc(n.x,n.y,halo,0,Math.PI*2); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    ctx.fillStyle=col;
+    ctx.globalAlpha=fillA*dimA;
+    if(glow>0.01&&hot){
+      ctx.shadowColor=hexRgba(col, 0.95*glow);
+      ctx.shadowBlur=Math.max(2, n.r*(2.2+glow*6)*glowBoost);
+    }else{
+      ctx.shadowColor="transparent"; ctx.shadowBlur=0;
+    }
+    ctx.fill();
+    ctx.shadowColor="transparent"; ctx.shadowBlur=0;
+    if(selected){
+      ctx.strokeStyle="#fff"; ctx.lineWidth=2/k; ctx.globalAlpha=Math.max(0.35, fillA); ctx.stroke();
+    }
+    const showLabel=n.type==="agent"||n.type==="group"||n.type==="mcp"||selected||GRAPH.hover===n.id;
+    if(showLabel&&hot){
+      ctx.font="12px -apple-system,'PingFang SC',sans-serif";
+      ctx.textAlign="center"; ctx.textBaseline="top";
+      ctx.globalAlpha=0.92;
+      ctx.fillStyle="#e6e6e6";
+      ctx.fillText((n.label||"").slice(0,22), n.x, n.y+n.r+4);
+    }
+  });
+  ctx.restore();
+}
+
+function graphInfo(id){
+  const el=document.getElementById("graphInfo");
+  const n=GRAPH.nmap[id];
+  if(!n){
+    el.innerHTML=`<p class="k">每个 skill 是一个点。<br>已投影到 agent 的会连线。<br>悬停看名称 · 单击高亮邻居 · 双击打开详情</p>`;
+    return;
+  }
+  const neigh=GRAPH.edges.filter(e=>e.source===id||e.target===id).map(e=>{
+    const other=e.source===id?e.target:e.source;
+    const on=GRAPH.nmap[other];
+    return {kind:e.kind,label:(on&&on.label)||other,id:other,type:on&&on.type};
+  });
+  const typeLabel={agent:"Agent",group:"分组",skill:"Skill",mcp:"MCP"}[n.type]||n.type;
+  const actions=[];
+  if(n.type==="skill"&&n.sid) actions.push(`<button class="smallbtn" data-graph-open="${esc(n.sid)}">打开详情</button>`);
+  el.innerHTML=`<div class="k">${esc(typeLabel)}</div><h3>${esc(n.label)}</h3>
+    <p>${esc(n.detail||"")}</p>
+    <div class="formrow">${actions.join("")}</div>
+    <div class="k" style="margin-top:12px">连接 ${neigh.length}</div>
+    <ul class="nb">${neigh.slice(0,60).map(x=>`<li><span style="color:${EDGE_COLOR[x.kind]||"#aaa"}">${esc(EDGE_LABEL[x.kind]||x.kind)}</span> · ${esc(x.label)}</li>`).join("")||"<li>无连线</li>"}</ul>`;
+}
+
+function fitCanvas(){
+  const {W,H}=graphSize();
+  const nodes=GRAPH.nodes; if(!nodes.length) return;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  nodes.forEach(n=>{
+    minX=Math.min(minX,n.x-n.r-6); minY=Math.min(minY,n.y-n.r-18);
+    maxX=Math.max(maxX,n.x+n.r+6); maxY=Math.max(maxY,n.y+n.r+18);
+  });
+  const bw=Math.max(40,maxX-minX), bh=Math.max(40,maxY-minY);
+  const k=Math.min((W-72)/bw,(H-72)/bh,1.6);
+  GRAPH.view.k=k;
+  GRAPH.view.x=W/2-k*(minX+maxX)/2;
+  GRAPH.view.y=H/2-k*(minY+maxY)/2;
+}
+function graphWake(){
+  GRAPH.alpha=Math.max(GRAPH.alpha,0.7);
+  if(!GRAPH.raf) GRAPH.raf=requestAnimationFrame(graphTick);
+}
+function graphTick(){
+  const {W,H}=graphSize();
+  for(let i=0;i<4;i++) graphStep(W,H);
+  GRAPH.alpha*=0.93;
+  drawGraph();
+  if(GRAPH.alpha>0.025) GRAPH.raf=requestAnimationFrame(graphTick);
+  else {
+    GRAPH.raf=null;
+    if(GRAPH.needFit){ fitCanvas(); GRAPH.needFit=false; drawGraph(); }
+  }
+}
+
+function renderGraph(relayout){
+  if(!DATA||document.getElementById("skGraph").hidden) return;
+  applyNodeScale();
+  const {W,H}=graphSize();
+  const prev=Object.fromEntries((GRAPH.nodes||[]).map(n=>[n.id,{x:n.x,y:n.y,pin:n.pin}]));
+  const model=buildGraphModel();
+  placeGraphNodes(model.nodes,W,H, relayout?{}:prev);
+  if(!relayout) model.nodes.forEach(n=>{ const p=prev[n.id]; if(p){ n.x=p.x; n.y=p.y; n.pin=p.pin; }});
+  GRAPH.nodes=model.nodes; GRAPH.edges=model.edges;
+  GRAPH.nmap=Object.fromEntries(model.nodes.map(n=>[n.id,n]));
+  GRAPH.idx=Object.fromEntries(model.nodes.map((n,i)=>[n.id,i]));
+  const mapped=model.edges.filter(e=>MAPPED[e.kind]||e.kind==="linked").length;
+  const stat=document.getElementById("graphStat");
+  if(stat) stat.textContent=`${model.nodes.length} 个节点 · ${model.edges.length} 条边 · ${mapped} 条投影`;
+  graphInfo(GRAPH.selected);
+  bindGraphEvents();
+  if(relayout){ GRAPH.view={x:0,y:0,k:1}; }
+  const size=graphSize();
+  GRAPH.alpha=1;
+  for(let i=0;i<50;i++) graphStep(size.W,size.H);
+  GRAPH.alpha=0.45;
+  if(relayout) fitCanvas();
+  drawGraph();
+  graphWake();
+}
+
+function hitNode(px,py){
+  const {x:vx,y:vy,k}=GRAPH.view;
+  const wx=(px-vx)/k, wy=(py-vy)/k;
+  for(let i=GRAPH.nodes.length-1;i>=0;i--){
+    const n=GRAPH.nodes[i];
+    const extra=n.type==="agent"?6:3;
+    if((n.x-wx)**2+(n.y-wy)**2 <= (n.r+extra)**2) return n.id;
+  }
+  return null;
+}
+
+function bindGraphEvents(){
+  if(GRAPH.bound) return;
+  GRAPH.bound=true;
+  const canvas=document.getElementById("graphCanvas");
+  const hint=document.getElementById("graphHint");
+  let mode=null, last={x:0,y:0}, drag=null;
+  canvas.addEventListener("wheel",e=>{
+    e.preventDefault();
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const wx=(mx-GRAPH.view.x)/GRAPH.view.k, wy=(my-GRAPH.view.y)/GRAPH.view.k;
+    const nk=Math.max(0.2, Math.min(5, GRAPH.view.k*(e.deltaY<0?1.12:0.89)));
+    GRAPH.view.k=nk; GRAPH.view.x=mx-wx*nk; GRAPH.view.y=my-wy*nk;
+    drawGraph();
+  },{passive:false});
+  canvas.addEventListener("pointerdown",e=>{
+    const rect=canvas.getBoundingClientRect();
+    const id=hitNode(e.clientX-rect.left, e.clientY-rect.top);
+    last={x:e.clientX,y:e.clientY};
+    if(id){ mode="node"; drag=id; GRAPH.selected=id; graphInfo(id); drawGraph(); canvas.classList.add("dragging"); }
+    else { mode="pan"; GRAPH.selected=null; graphInfo(null); drawGraph(); canvas.classList.add("dragging"); }
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove",e=>{
+    const rect=canvas.getBoundingClientRect();
+    const dx=e.clientX-last.x, dy=e.clientY-last.y;
+    if(!mode){
+      const id=hitNode(e.clientX-rect.left, e.clientY-rect.top);
+      if(id!==GRAPH.hover){
+        GRAPH.hover=id; drawGraph();
+        if(id&&GRAPH.nmap[id]){
+          hint.hidden=false; hint.textContent=GRAPH.nmap[id].label;
+          hint.style.left=(e.clientX-rect.left)+"px"; hint.style.top=(e.clientY-rect.top)+"px";
+        }else hint.hidden=true;
+      }else if(id){
+        hint.style.left=(e.clientX-rect.left)+"px"; hint.style.top=(e.clientY-rect.top)+"px";
+      }
+      return;
+    }
+    last={x:e.clientX,y:e.clientY};
+    if(mode==="pan"){ GRAPH.view.x+=dx; GRAPH.view.y+=dy; drawGraph(); }
+    else if(mode==="node"&&drag&&GRAPH.nmap[drag]){
+      const n=GRAPH.nmap[drag]; n.pin=true;
+      n.x+=dx/GRAPH.view.k; n.y+=dy/GRAPH.view.k;
+      graphWake();
+    }
+  });
+  canvas.addEventListener("pointerup",()=>{ mode=null; drag=null; canvas.classList.remove("dragging"); });
+  canvas.addEventListener("pointerleave",()=>{ if(!mode){ GRAPH.hover=null; hint.hidden=true; drawGraph(); }});
+  canvas.addEventListener("dblclick",e=>{
+    const rect=canvas.getBoundingClientRect();
+    const id=hitNode(e.clientX-rect.left, e.clientY-rect.top);
+    const n=id&&GRAPH.nmap[id];
+    if(n&&n.type==="skill"&&n.sid) openSkill(n.sid);
+  });
+  document.getElementById("graphInfo").addEventListener("click",e=>{
+    const open=e.target.closest("[data-graph-open]");
+    if(open) openSkill(open.dataset.graphOpen);
+  });
+  ["graphQ","graphOrphans","graphGroups","graphVersion","graphMcp","graphLocal"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.addEventListener(id==="graphQ"?"input":"change",()=>renderGraph(false));
+  });
+  ["graphSize","graphGlow","graphAlpha"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.addEventListener("input",()=>{ applyGraphStyle(); drawGraph(); });
+  });
+  document.getElementById("graphReset").addEventListener("click",()=>{
+    GRAPH.view={x:0,y:0,k:1}; GRAPH.selected=null; GRAPH.hover=null;
+    document.getElementById("graphLocal").checked=false;
+    const size=document.getElementById("graphSize");
+    const glow=document.getElementById("graphGlow");
+    const alpha=document.getElementById("graphAlpha");
+    if(size) size.value="40";
+    if(glow) glow.value="55";
+    if(alpha) alpha.value="85";
+    GRAPH.nodes=[];
+    renderGraph(true);
+  });
+  window.addEventListener("resize",()=>{ if(!document.getElementById("skGraph").hidden) drawGraph(); });
+}
+
 /* ---------- tabs ---------- */
 document.getElementById("tabs").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b)return;
   TAB=b.dataset.t;
   document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x===b));
   ["ov","sk","mc","bk","mt","lg"].forEach(t=>document.getElementById("tab-"+t).hidden=(t!==TAB));
-  if(TAB==="sk")renderSkillTable();
+  if(TAB==="sk"){ renderSkillTable(); if(SK_VIEW==="graph") renderGraph(true); }
+  if(TAB==="mt")renderMaintenance();
+  if(TAB==="lg")renderLogs();
 });
 
 load();

@@ -760,7 +760,8 @@ def cmd_add(args) -> int:
 
 def cmd_gui(args) -> int:
     from . import webgui
-    webgui.serve(port=args.port, open_browser=not args.no_browser)
+    webgui.serve(port=args.port, open_browser=not args.no_browser,
+                 read_only=args.read_only)
     return SUCCESS
 
 
@@ -861,6 +862,7 @@ def main(argv=None) -> int:
 
     sp = sub.add_parser("gui", help="启动本地 Web GUI")
     sp.add_argument("--port", type=int, default=8317); sp.add_argument("--no-browser", action="store_true")
+    sp.add_argument("--read-only", action="store_true", help="只读：禁止全部写接口")
     sp.set_defaults(fn=cmd_gui)
 
     args = parser.parse_args(argv)

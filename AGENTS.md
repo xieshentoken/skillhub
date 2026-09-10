@@ -27,7 +27,7 @@ python3 -m skillhub trash list|restore|retain|cleanup   # 单 skill 回收区
 python3 -m skillhub group list|set|distribute ...      # 分组与选择性分发
 python3 -m skillhub diagnose <id> [--confirm ...]      # 静态依赖诊断，不执行 skill
 python3 -m skillhub models [--json]                    # 只读发现实际配置模型
-python3 -m skillhub gui [--port 8317]         # Web GUI（查看 + link/unlink + CSV 导出）
+python3 -m skillhub gui [--port 8317] [--read-only]  # Web GUI（令牌会话；写操作先预览；全库 rollback 走 CLI）
 python3 tests/test_projection.py              # 集成测试（用临时目录，不碰真实环境）
 ```
 

@@ -1,7 +1,9 @@
 """本地 Web GUI。
 
-服务只监听 loopback；API 要求匹配 Host/Origin、同源会话 cookie 和 JSON
-请求。写接口默认预览，浏览器在用户确认后显式发送 ``apply: true``。
+服务只监听 loopback。浏览器必须带上启动时打印的一次性令牌才能拿到
+HttpOnly 会话 cookie。GET 校验 Host 和 cookie（同源 GET fetch 不带 Origin）；
+POST 额外要求匹配的 Origin。写接口默认预览，忽略 ``allow_risky``，全库
+rollback 不走 GUI。
 """
 from __future__ import annotations
 
@@ -20,9 +22,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import adapters, mcp, scan, store
-from .config import (AGENTS, BACKUP_DIR, GROUPS_FILE, INDEX_FILE, LOG_FILE,
-                     MCP_INDEX_FILE, MODEL_CONFIG_FILES, SETTINGS_FILE,
-                     STORE_DIR, TRASH_DIR, discover_models, suggest_model_groups)
+from .config import (AGENTS, BACKUP_DIR, INDEX_FILE, MCP_INDEX_FILE, RISK_GATE,
+                     STORE_DIR, discover_models, suggest_model_groups)
 
 
 HTML_FILE = Path(__file__).with_name("gui.html")
@@ -30,6 +31,27 @@ DEFAULT_PORT = 8317
 MAX_BODY_BYTES = 1024 * 1024
 BACKUP_PAGE_SIZE = 50
 _BACKUP_CACHE: dict = {}
+UNAUTH_HTML = (
+    "<!DOCTYPE html><meta charset=utf-8><title>skillhub</title>"
+    "<body style='font:14px sans-serif;padding:2rem'>"
+    "<p>未授权。请使用终端打印的带 token 的 URL 打开本控制台。</p>"
+).encode("utf-8")
+WRITE_PATHS = {
+    "/api/link", "/api/unlink", "/api/skill/create-ul", "/api/skill/edit",
+    "/api/skill/rename", "/api/skill/refresh", "/api/skill/trial", "/api/skill/publish",
+    "/api/skill/import", "/api/diagnose/confirm", "/api/diagnose/dependencies", "/api/groups",
+    "/api/groups/delete", "/api/backups/cleanup",
+    "/api/distribute", "/api/trash/restore", "/api/trash/retain",
+    "/api/trash/cleanup", "/api/settings", "/api/editor/open",
+    "/api/mcp/import", "/api/mcp/edit", "/api/mcp/generate",
+    "/api/model-groups", "/api/models/suggest",
+}
+CONFIRM_PHRASES = {
+    "/api/skill/publish": "PUBLISH",
+    "/api/trash/cleanup": "CLEANUP",
+    "/api/backups/cleanup": "CLEANUP",
+    "/api/mcp/generate": "GENERATE",
+}
 
 
 def _dir_size(path: Path) -> int:
@@ -126,10 +148,8 @@ def collect_data(backup_page: int = 0, backup_page_size: int = BACKUP_PAGE_SIZE)
     for sid, manifest in sorted(index.items(), key=lambda item: item[1].get("name", "")):
         try:
             pair = store.version_pair(index, sid)
-            diagnosis = store.diagnose_skill(sid)
         except (OSError, ValueError):
             pair = {"formal_sid": manifest.get("formal_sid"), "ul_sid": manifest.get("ul_sid")}
-            diagnosis = {"missing": [], "needs_manual": [], "blocking": False}
         skills.append({
             "id": sid,
             "name": manifest.get("name", ""),
@@ -146,9 +166,6 @@ def collect_data(backup_page: int = 0, backup_page_size: int = BACKUP_PAGE_SIZE)
             "imported_at": manifest.get("imported_at", ""),
             "source_agents": manifest.get("agents", []),
             "source_paths": [item.get("path", "") for item in manifest.get("sources", [])],
-            "diagnostic": {"missing": len(diagnosis.get("missing", [])),
-                           "needs_manual": len(diagnosis.get("needs_manual", [])),
-                           "blocking": bool(diagnosis.get("blocking"))},
             "states": state_by_sid.get(sid, {}),
         })
 
@@ -176,6 +193,26 @@ def collect_data(backup_page: int = 0, backup_page_size: int = BACKUP_PAGE_SIZE)
         groups = store.load_groups()
     except (OSError, ValueError):
         groups = {"schema_version": 1, "groups": {}}
+    return {
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "paths": {"store": str(STORE_DIR), "index": str(INDEX_FILE),
+                  "mcp_index": str(MCP_INDEX_FILE), "backups": str(BACKUP_DIR)},
+        "summary": {"skills": len(skills), "risky": sum(1 for item in skills if item["risks"]),
+                    "agents": len(agents), "mcp_servers": len(servers),
+                    "backups": total_backups, "linked_total": sum(item["linked"] for item in agents)},
+        "agents": agents, "skills": skills, "mcp_servers": servers,
+        "groups": groups.get("groups", {}),
+        "distribution_sources": store.load_distribution_sources().get("agents", {}),
+        "trash": store.list_trash(),
+        "trash_plan": store.plan_trash_cleanup(), "logs": store.read_audit_log(100),
+        "settings": store.load_settings(),
+        "risk_gate": list(RISK_GATE),
+        "backups": backups, "backup_page": backup_page,
+        "backup_page_size": backup_page_size, "backup_total": total_backups,
+    }
+
+
+def _scan_sources() -> list:
     sources = []
     try:
         for agent, records in scan.scan_all().items():
@@ -190,25 +227,8 @@ def collect_data(backup_page: int = 0, backup_page_size: int = BACKUP_PAGE_SIZE)
                                 "size": record.get("size", 0), "desc": record.get("fm_desc", ""),
                                 "risks": record.get("risks", [])})
     except (OSError, ValueError):
-        sources = []
-    return {
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "paths": {"store": str(STORE_DIR), "index": str(INDEX_FILE),
-                  "mcp_index": str(MCP_INDEX_FILE), "backups": str(BACKUP_DIR)},
-        "summary": {"skills": len(skills), "risky": sum(1 for item in skills if item["risks"]),
-                    "agents": len(agents), "mcp_servers": len(servers),
-                    "backups": total_backups, "linked_total": sum(item["linked"] for item in agents)},
-        "agents": agents, "skills": skills, "mcp_servers": servers,
-        "groups": groups.get("groups", {}),
-        "distribution_sources": store.load_distribution_sources().get("agents", {}),
-        "trash": store.list_trash(),
-        "trash_plan": store.plan_trash_cleanup(), "logs": store.read_audit_log(100),
-        "settings": store.load_settings(), "models": discover_models(),
-        "model_config_files": {agent: str(path) for agent, path in MODEL_CONFIG_FILES.items()},
-        "sources": sources,
-        "backups": backups, "backup_page": backup_page,
-        "backup_page_size": backup_page_size, "backup_total": total_backups,
-    }
+        return []
+    return sources
 
 
 def _header_host(handler) -> str:
@@ -221,10 +241,11 @@ def _host_allowed(handler) -> bool:
     return _header_host(handler) in allowed
 
 
-def _origin_allowed(handler) -> bool:
+def _origin_allowed(handler, *, required: bool) -> bool:
+    """POST 必须带同源 Origin。GET 允许缺 Origin（浏览器同源 fetch 不发该头）。"""
     origin = handler.headers.get("Origin")
     if not origin:
-        return True
+        return not required
     parsed = urlparse(origin)
     port = handler.server.server_address[1]
     return parsed.scheme == "http" and parsed.netloc.lower() in {
@@ -240,6 +261,30 @@ def _cookie_value(header: str, name: str) -> str:
     return ""
 
 
+def _tokens_match(got: str, expected: str) -> bool:
+    if not got or not expected:
+        return False
+    try:
+        return secrets.compare_digest(got, expected)
+    except (TypeError, ValueError):
+        return False
+
+
+def _query_token(handler) -> str:
+    values = parse_qs(urlparse(handler.path).query).get("token", [])
+    return values[0] if values else ""
+
+
+def _session_token(handler) -> str:
+    header = handler.headers.get("X-Skillhub-Token", "")
+    return header or _cookie_value(handler.headers.get("Cookie", ""), "skillhub_session")
+
+
+def _session_ok(handler) -> bool:
+    expected = getattr(handler.server, "skillhub_token", "") or ""
+    return _tokens_match(_session_token(handler), expected)
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "skillhub-gui"
 
@@ -248,7 +293,7 @@ class _Handler(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
     def _send(self, code: int, body: bytes, ctype: str,
-              headers: Optional[dict] = None) -> None:
+              headers: dict | None = None) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -259,24 +304,35 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _json(self, value: dict, code: int = 200) -> None:
+        if code == 200 and getattr(self, "_audit_write", False):
+            store.audit_log("gui", detail={"path": getattr(self, "_audit_path", ""),
+                                           "apply": True})
+            self._audit_write = False
         self._send(code, json.dumps(value, ensure_ascii=False).encode("utf-8"),
                    "application/json; charset=utf-8")
 
-    def _authorized(self) -> bool:
-        return (_host_allowed(self) and _origin_allowed(self) and
-                secrets.compare_digest(
-                    _cookie_value(self.headers.get("Cookie", ""), "skillhub_session"),
-                    getattr(self.server, "skillhub_token", "")))
+    def _authorized(self, *, require_origin: bool = False) -> bool:
+        return (_host_allowed(self) and _session_ok(self) and
+                _origin_allowed(self, required=require_origin))
+
+    def _page_authorized(self) -> bool:
+        expected = getattr(self.server, "skillhub_token", "") or ""
+        return _host_allowed(self) and (
+            _session_ok(self) or _tokens_match(_query_token(self), expected))
+
+    def _cookie_header(self) -> dict:
+        token = getattr(self.server, "skillhub_token", "")
+        return {"Set-Cookie": f"skillhub_session={token}; Path=/; HttpOnly; SameSite=Strict"}
 
     def do_GET(self):
         path = urlparse(self.path).path
         try:
             if path in {"/", "/index.html"}:
+                if not self._page_authorized():
+                    self._send(403, UNAUTH_HTML, "text/html; charset=utf-8")
+                    return
                 body = HTML_FILE.read_bytes()
-                token = getattr(self.server, "skillhub_token", "")
-                self._send(200, body, "text/html; charset=utf-8", {
-                    "Set-Cookie": f"skillhub_session={token}; Path=/; HttpOnly; SameSite=Strict",
-                })
+                self._send(200, body, "text/html; charset=utf-8", self._cookie_header())
                 return
             if not self._authorized():
                 self._json({"error": "未授权的本地会话"}, 403)
@@ -284,9 +340,11 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/api/data":
                 params = parse_qs(urlparse(self.path).query)
                 page = int(params.get("backup_page", ["0"])[0])
-                self._json(collect_data(page))
+                payload = collect_data(page)
+                payload["read_only"] = bool(getattr(self.server, "skillhub_read_only", False))
+                self._json(payload)
             elif path == "/api/sources":
-                self._json({"sources": collect_data().get("sources", [])})
+                self._json({"sources": _scan_sources()})
             elif path == "/api/models":
                 self._json(discover_models())
             elif path == "/api/logs":
@@ -363,7 +421,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-    def _read_json_body(self) -> Optional[dict]:
+    def _read_json_body(self) -> dict | None:
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if content_type != "application/json":
             self._json({"error": "Content-Type 必须是 application/json"}, 415)
@@ -390,22 +448,15 @@ class _Handler(BaseHTTPRequestHandler):
         return value
 
     def do_POST(self):
-        if not self._authorized():
+        if not self._authorized(require_origin=True):
             self._json({"error": "未授权的本地会话"}, 403)
             return
         path = urlparse(self.path).path
-        supported = {
-            "/api/link", "/api/unlink", "/api/skill/create-ul", "/api/skill/edit",
-            "/api/skill/rename", "/api/skill/refresh", "/api/skill/trial", "/api/skill/publish",
-            "/api/skill/import", "/api/diagnose/confirm", "/api/diagnose/dependencies", "/api/groups",
-            "/api/groups/delete", "/api/backups/rollback", "/api/backups/cleanup",
-            "/api/distribute", "/api/trash/restore", "/api/trash/retain",
-            "/api/trash/cleanup", "/api/settings", "/api/editor/open",
-            "/api/mcp/import", "/api/mcp/edit", "/api/mcp/generate",
-            "/api/model-groups", "/api/models/suggest",
-        }
-        if path not in supported:
+        if path not in WRITE_PATHS:
             self._json({"error": "not found"}, 404); return
+        if getattr(self.server, "skillhub_read_only", False):
+            self._json({"error": "GUI 处于只读模式，写操作已禁用"}, 403)
+            return
         body = self._read_json_body()
         if body is None:
             return
@@ -415,6 +466,15 @@ class _Handler(BaseHTTPRequestHandler):
                 raise ValueError("布尔字段类型无效")
             if body.get("apply") and body.get("dry_run"):
                 raise ValueError("apply 与 dry_run 互斥")
+            if body.get("allow_risky"):
+                raise ValueError("GUI 不允许 --allow-risky，请用 CLI 显式放行")
+            required_phrase = CONFIRM_PHRASES.get(path)
+            if path == "/api/distribute" and apply and body.get("replace"):
+                required_phrase = "REPLACE"
+            if apply and required_phrase and body.get("confirm_phrase") != required_phrase:
+                raise ValueError(f"此操作必须输入 {required_phrase} 确认")
+            self._audit_write = bool(apply) or path == "/api/models/suggest"
+            self._audit_path = path
             if path in {"/api/link", "/api/unlink"}:
                 sid = body.get("sid")
                 agents = body.get("agents")
@@ -429,9 +489,9 @@ class _Handler(BaseHTTPRequestHandler):
                     self._json({"error": f"中央库中不存在 skill: {sid}"}, 404); return
                 if path == "/api/link":
                     actions = (adapters.apply_link(sid, agents, force=body.get("force", False),
-                                                    allow_risky=body.get("allow_risky", False))
+                                                    allow_risky=False)
                                if apply else adapters.plan_link(sid, agents, force=body.get("force", False),
-                                                               allow_risky=body.get("allow_risky", False)))
+                                                               allow_risky=False))
                 else:
                     actions = (adapters.apply_unlink(sid, agents, force=body.get("force", False))
                                if apply else adapters.plan_unlink(sid, agents))
@@ -529,11 +589,11 @@ class _Handler(BaseHTTPRequestHandler):
                 replace = body.get("replace") if "replace" in body else None
                 result = adapters.plan_distribution(agents, group_ids=groups, sids=sids,
                                                     replace=replace, force=body.get("force", False),
-                                                    allow_risky=body.get("allow_risky", False))
+                                                    allow_risky=False)
                 if apply:
                     result = adapters.apply_distribution(agents, group_ids=groups, sids=sids,
                                                          replace=replace, force=body.get("force", False),
-                                                         allow_risky=body.get("allow_risky", False))
+                                                         allow_risky=False)
                 self._json(result); return
             if path == "/api/trash/restore":
                 entry = body.get("entry"); store.safe_component(entry)
@@ -550,25 +610,12 @@ class _Handler(BaseHTTPRequestHandler):
                 actions = adapters.apply_cleanup(keep) if apply and body.get("confirm") else adapters.plan_cleanup(keep)
                 self._json({"mode": "apply" if apply and body.get("confirm") else "plan",
                             "keep": keep, "actions": actions}); return
-            if path == "/api/backups/rollback":
-                ts = body.get("ts")
-                store.safe_component(ts)
-                backup = next((item for item in adapters.list_backups() if item.name == ts), None)
-                if backup is None:
-                    raise ValueError(f"找不到备份: {ts}")
-                info = adapters.backup_info(backup)
-                if info.get("kind") == "skill_publish":
-                    raise ValueError("这是 skill 级发布备份，请到下方单 skill 回收区恢复；不能全库恢复")
-                adapters._validate_snapshot(backup)
-                if not apply:
-                    self._json({"mode": "plan", "ts": ts, "kind": info.get("kind"),
-                                "detail": "恢复该备份会覆盖中央库快照及其记录的投影目标"}); return
-                if not body.get("confirm"):
-                    raise ValueError("恢复备份必须明确确认")
-                adapters.rollback(ts)
-                self._json({"mode": "apply", "ts": ts, "restored": True}); return
             if path == "/api/settings":
                 settings = body.get("settings", body)
+                if not isinstance(settings, dict):
+                    raise ValueError("settings 必须是对象")
+                if "editor" in settings:
+                    raise ValueError("GUI 不能配置外部编辑器，请用环境变量 VISUAL 或 EDITOR")
                 self._json(store.save_settings(settings) if apply else {"mode": "plan", "settings": settings}); return
             if path == "/api/editor/open":
                 sid = body.get("sid"); relative = body.get("path")
@@ -597,6 +644,10 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/api/mcp/edit":
                 sid = body.get("sid"); store.safe_component(sid)
                 changes = body.get("changes", {})
+                if not isinstance(changes, dict):
+                    raise ValueError("changes 必须是对象")
+                if any(key in changes for key in ("command", "args")):
+                    raise ValueError("GUI 不能修改 MCP command/args，请用 CLI")
                 self._json(mcp.edit_definition(sid, changes) if apply else {"mode": "plan", "sid": sid, "changes": changes}); return
             if path == "/api/mcp/generate":
                 sid = body.get("sid"); agents = body.get("agents", [])
@@ -627,18 +678,25 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(suggest_model_groups(summaries, agent, model)); return
             self._json({"error": "not found"}, 404)
         except (ValueError, OSError) as exc:
+            self._audit_write = False
             self._json({"error": f"{type(exc).__name__}: {exc}"}, 400)
         except Exception as exc:
+            self._audit_write = False
             self._json({"error": f"{type(exc).__name__}: {exc}"}, 500)
 
 
-def serve(port: int = DEFAULT_PORT, open_browser: bool = True) -> None:
-    url = f"http://127.0.0.1:{port}/"
+def serve(port: int = DEFAULT_PORT, open_browser: bool = True,
+          read_only: bool = False) -> None:
+    store.harden_home_permissions()
     httpd = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
     httpd.skillhub_token = secrets.token_urlsafe(32)
+    httpd.skillhub_read_only = bool(read_only)
+    url = f"http://127.0.0.1:{port}/?token={httpd.skillhub_token}"
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
-    print(f"skillhub GUI: {url}  (Ctrl-C 退出)")
+    mode = "只读" if read_only else "可写"
+    print(f"skillhub GUI ({mode}): {url}")
+    print("请使用上面的 URL 打开；令牌只打印一次。Ctrl-C 退出。")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
