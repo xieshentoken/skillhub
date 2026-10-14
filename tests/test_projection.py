@@ -780,6 +780,113 @@ class SecurityRegressionTests(SkillhubFixture):
         finally:
             close()
 
+    def test_gui_static_assets_require_session_and_reject_traversal(self) -> None:
+        request, close, _ = self._start_gui()
+        try:
+            status, body, headers = request("/static/js/app.js", raw=True, origin_header="")
+            self.assertEqual(status, 200)
+            self.assertTrue(headers.get("Content-Type", "").startswith("text/javascript"))
+            self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
+            status, _, headers = request("/static/gui.css", raw=True, origin_header="")
+            self.assertEqual(status, 200)
+            self.assertTrue(headers.get("Content-Type", "").startswith("text/css"))
+            status, _ = request("/static/js/app.js", cookie="", origin_header="")
+            self.assertEqual(status, 403)
+            status, _ = request("/static/js/app.js", cookie="wrong", origin_header="")
+            self.assertEqual(status, 403)
+            for path in ("/static/../webgui.py", "/static/%2e%2e/webgui.py",
+                         "/static/js/../../webgui.py", "/static/", "/static/missing.js",
+                         "/static/js/.hidden.js", "/static/..%2fwebgui.py"):
+                status, _ = request(path, origin_header="")
+                self.assertEqual(status, 404, path)
+        finally:
+            close()
+
+    def test_gui_static_assets_are_packaged_and_resolvable(self) -> None:
+        import importlib
+        import re
+        sys.path.insert(0, str(WS))
+        old_env = dict(os.environ)
+        os.environ.update(self.env)
+        try:
+            for name in list(sys.modules):
+                if name == "skillhub" or name.startswith("skillhub."):
+                    sys.modules.pop(name, None)
+            webgui = importlib.import_module("skillhub.webgui")
+            html = webgui.HTML_FILE.read_text(encoding="utf-8")
+            referenced = set(re.findall(r'(?:href|src)="(/static/[^"]+)"', html))
+            self.assertIn("/static/js/app.js", referenced)
+            js_dir = webgui.STATIC_DIR / "js"
+            for module in js_dir.glob("*.js"):
+                for name in re.findall(r'from "\./([\w.-]+\.js)"', module.read_text(encoding="utf-8")):
+                    referenced.add(f"/static/js/{name}")
+            for url in referenced:
+                self.assertIsNotNone(webgui._static_file(url), url)
+            for bad in ("/static/../webgui.py", "/static/%2e%2e/webgui.py",
+                        "/static/js/../../gui.html", "/static/", "/static/gui.html",
+                        "/static/js/missing.js"):
+                self.assertIsNone(webgui._static_file(bad), bad)
+            pyproject = (WS / "pyproject.toml").read_text(encoding="utf-8")
+            self.assertIn('"static/js/*.js"', pyproject)
+            self.assertIn('"static/*.css"', pyproject)
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+
+    def test_gui_api_exposes_full_md5_and_import_identity_and_refreshes_versions(self) -> None:
+        self.add_skill()
+        request, close, _ = self._start_gui()
+        try:
+            status, data = request("/api/data")
+            self.assertEqual(status, 200, data)
+            self.assertEqual(data["skills"], [])
+            status, sources = request("/api/sources")
+            self.assertEqual(status, 200, sources)
+            source = next(item for item in sources["sources"] if item["name"] == "demo")
+            self.assertRegex(source["md5"], r"^[0-9a-f]{32}$")
+            self.assertEqual(source["import_sid"], f'demo--{source["md5"][:8]}')
+            source_path = source["path"]
+
+            payload = json.dumps({"agent": "pi", "path": source_path}).encode()
+            status, preview = request("/api/skill/import", data=payload,
+                                      content_type="application/json")
+            self.assertEqual(status, 200, preview)
+            self.assertEqual(preview["mode"], "plan")
+            self.assertEqual(preview["sid"], source["import_sid"])
+            self.assertFalse((self.hub / "index.json").exists())
+
+            payload = json.dumps({"agent": "pi", "path": source_path, "apply": True}).encode()
+            status, applied = request("/api/skill/import", data=payload,
+                                      content_type="application/json")
+            self.assertEqual(status, 200, applied)
+            self.assertEqual(applied["sid"], source["import_sid"])
+            status, data = request("/api/data")
+            self.assertEqual(status, 200, data)
+            skill = next(item for item in data["skills"] if item["id"] == source["import_sid"])
+            self.assertEqual(skill["md5"], source["md5"])
+
+            (self.pi / "demo" / "run.py").write_text("print(2)\n", encoding="utf-8")
+            status, changed = request("/api/sources")
+            self.assertEqual(status, 200, changed)
+            changed_source = next(item for item in changed["sources"] if item["path"] == source_path)
+            self.assertNotEqual(changed_source["md5"], source["md5"])
+            self.assertNotEqual(changed_source["import_sid"], source["import_sid"])
+            self.assertEqual(changed_source["path"], source_path)
+            self.assertEqual(skill["source_paths"], [source_path])
+
+            payload = json.dumps({"agent": "pi", "path": source_path, "apply": True}).encode()
+            status, applied = request("/api/skill/import", data=payload,
+                                      content_type="application/json")
+            self.assertEqual(status, 200, applied)
+            self.assertEqual(applied["sid"], changed_source["import_sid"])
+            status, data = request("/api/data")
+            self.assertEqual(status, 200, data)
+            by_id = {item["id"]: item for item in data["skills"]}
+            self.assertEqual(by_id[source["import_sid"]]["md5"], source["md5"])
+            self.assertEqual(by_id[changed_source["import_sid"]]["md5"], changed_source["md5"])
+        finally:
+            close()
+
     def test_zip_cleanup_and_manifest_validation(self) -> None:
         self.add_skill()
         (self.pi / "demo" / "run.py").chmod(0o755)

@@ -29,7 +29,8 @@ Once installed, use the `skillhub` command directly. Without installing, run `py
     adapters.py            # projection engine: link/unlink, conflicts, backup/rollback
     mcp.py                 # MCP config layer: central definitions + per-agent renderers
     webgui.py              # local web GUI server (127.0.0.1; view + link/unlink write endpoints)
-    gui.html               # GUI single-page frontend
+    gui.html               # GUI page shell
+    static/                # GUI stylesheet and ES modules (gui.css, js/*.js; no build step)
     cli.py                 # command-line entry point
   tests/test_projection.py # integration tests (temp dirs only, never touches real env)
 
@@ -110,13 +111,15 @@ python3 -m skillhub gui [--port 8317] [--no-browser] [--read-only]
 
 `skillhub gui` starts a local web console (opens the browser automatically):
 
-- **Agent overview**: per-agent dir, projection mode (symlink/copy/nested), linked/conflict/unprojected counts with ratio bars, MCP support;
-- **Central store**: search + filter by agent/state/risk; each row shows per-agent projection state as colored dots; click a row for details (manifest, per-agent target paths, file listing) and **run link / unlink right there** (same backup and conflict protection as the CLI);
+- **Agent overview**: a "needs attention" list (conflicts, broken links, drift, risk-gated skills, expired trash) linking to filtered views, plus per-agent dir, projection mode (symlink/copy/nested), linked/conflict/unprojected counts with ratio bars, MCP support;
+- **Central store**: search + filter by agent/state/risk; one projection-state column per agent (color + glyph), paging, and keyboard navigation (↑↓ / Enter); the detail drawer is split into info / projections / versions / dependencies / files; click a row for details (manifest, per-agent target paths, file listing) and **run link / unlink right there** (same backup and conflict protection as the CLI);
 - **Import / version workflow**: import a selected agent source, compare formal and UL versions, edit only approved UL text files, trial UL on selected agents, publish with a skill-scoped backup, and restore retired versions from the per-skill trash;
 - **Groups / distribution**: drag or checkbox-select skills into manual groups and distribute per-agent saved group/explicit-skill sources; changing a group does not write agents, and the next preview resolves current members while retaining explicit selections. Formal/UL trial projections are deduplicated by target so replace cannot remove the active UL accidentally;
 - **Diagnostics / models**: static tool and environment checks block publish on explicit missing or unconfirmed inferred dependencies; configured models are shown, and only a verified existing-agent API or explicit tool-free direct API can be called after an explicit user click;
 - **MCP servers**: central definitions (transport, target, env/header variable names, agents);
 - **Backups / trash**: snapshot listing and per-skill trash restore; full-store rollback stays on the CLI;
+- **Write confirmation**: every write previews first; the plan is shown as a readable per-agent action list (raw JSON expandable), and high-risk operations require typing the confirmation phrase in the dialog;
+- **Navigation and theme**: hash routing (e.g. `#/sk?agent=pi&state=conflict`, survives reload); light/dark theme follows the system with a manual toggle;
 - **Sortable columns + CSV export**: click a column header to sort; export the current filtered view as CSV;
 - **Auto refresh**: opt-in periodic refresh, handy when mixing GUI and CLI operations.
 

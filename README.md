@@ -30,7 +30,8 @@ pip install -e .
     adapters.py            # 投影引擎：link/unlink、冲突、备份回滚
     mcp.py                 # MCP 配置层：中央定义 + 各 agent 格式生成
     webgui.py              # 本地 Web GUI 服务（127.0.0.1，查看 + link/unlink 写端点）
-    gui.html               # GUI 单页界面
+    gui.html               # GUI 页面骨架
+    static/                # GUI 样式与 ES 模块（gui.css、js/*.js，无构建步骤）
     cli.py                 # 命令行入口
   tests/test_projection.py # 集成测试（临时目录，不触碰真实环境）
 
@@ -127,12 +128,14 @@ python3 -m skillhub gui [--port 8317] [--no-browser] [--read-only]
 
 `skillhub gui` 启动一个本地网页控制台（自动打开浏览器）：
 
-- **Agent 概览**：每个 agent 的目录、投影方式（symlink/copy/nested）、已投影/冲突/未投影计数与比例条、MCP 支持情况；
-- **中央库 Skills**：搜索 + 按 agent/状态/风险过滤；列表与 Obsidian 式关系图谱（每个 skill 一个点，已投影到 agent 的画连线；悬停、单击高亮邻居、双击打开详情）；详情里可执行 link/unlink、创建/编辑 ul、切换试用 agent、发布、改名、版本差异、静态诊断和文本保存；
+- **Agent 概览**：“需要处理”清单（冲突、断链、漂移、风险门禁、到期回收项，一键跳到对应筛选），以及每个 agent 的目录、投影方式（symlink/copy/nested）、计数与比例条、MCP 支持情况；
+- **中央库 Skills**：搜索 + 按 agent/状态/风险过滤；每个 agent 一列状态标记（颜色 + 符号）、分页、键盘导航（↑↓ / Enter）；详情抽屉分为信息 / 投影 / 版本 / 依赖 / 文件；列表与 Obsidian 式关系图谱（每个 skill 一个点，已投影到 agent 的画连线；悬停、单击高亮邻居、双击打开详情）；详情里可执行 link/unlink、创建/编辑 ul、切换试用 agent、发布、改名、版本差异、静态诊断和文本保存；
 - **MCP Servers**：中央库定义一览（transport、目标、env/header 变量名、适用 agent）；
 - **备份 / 回收区**：备份点、单 skill 回收项、手动保留、单项恢复和明确确认的到期清理；全库 rollback 只走 CLI；GUI 启动或刷新不会自动删除；
 - **导入 / 分组 / 分发**：从已发现的 agent 来源选择版本导入；同名版本可比较；分组支持拖拽和勾选替代操作，分发按 agent 保存分组与单 skill 来源，组变化本身不写 agent，下一次预览按当前成员重新计算；显式单 skill 选择不会因移出分组而丢失，trial 的 formal/ul 共享目标也不会被 replace 误删；
 - **日志 / 设置 / 模型**：查看无密钥审计日志、设置回收期限、发现实际本机模型配置；不会把 Codex 的 `exec --json` 只读 sandbox 当作无工具协议，只有已验证的 Claude/OpenCode/Pi API 配置或显式无工具直接 API 才生成建议，其它模型仅显示配置但不可调用；
+- **写操作确认**：所有写操作先预览，预览结果以可读的逐 agent 动作列表展示（原始 JSON 可展开）；高风险操作需在对话框内输入确认短语；
+- **导航与主题**：地址栏 hash 路由（如 `#/sk?agent=pi&state=conflict`，刷新不丢页面），浅色/深色主题跟随系统并可手动切换；
 - **表格可排序 + CSV 导出**：点击列头排序，导出当前过滤结果为 CSV；
 - **自动刷新**：可勾选定时刷新，配合外部 CLI 操作使用。
 

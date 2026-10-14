@@ -27,6 +27,8 @@ from .config import (AGENTS, BACKUP_DIR, INDEX_FILE, MCP_INDEX_FILE, RISK_GATE,
 
 
 HTML_FILE = Path(__file__).with_name("gui.html")
+STATIC_DIR = Path(__file__).with_name("static")
+STATIC_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
 DEFAULT_PORT = 8317
 MAX_BODY_BYTES = 1024 * 1024
 BACKUP_PAGE_SIZE = 50
@@ -153,6 +155,7 @@ def collect_data(backup_page: int = 0, backup_page_size: int = BACKUP_PAGE_SIZE)
         skills.append({
             "id": sid,
             "name": manifest.get("name", ""),
+            "md5": manifest.get("md5", ""),
             "category": manifest.get("category", ""),
             "logical_id": manifest.get("logical_id", manifest.get("name", "")),
             "channel": manifest.get("channel", "formal"),
@@ -215,20 +218,54 @@ def collect_data(backup_page: int = 0, backup_page_size: int = BACKUP_PAGE_SIZE)
 def _scan_sources() -> list:
     sources = []
     try:
-        for agent, records in scan.scan_all().items():
+        # 逐 agent 扫描，保留可用来源，并把单个 agent 的失败作为可见错误
+        # 返回；不能让一次失败导致前端沿用上一次的“一致”状态。
+        for agent in AGENTS:
+            try:
+                records = scan.scan_agent(agent)
+            except (OSError, ValueError) as exc:
+                sources.append({"agent": agent, "name": "", "path": "",
+                                "error": f"{type(exc).__name__}: {exc}"})
+                continue
             for record in records:
                 if record.get("error"):
                     sources.append({"agent": agent, "name": record.get("name", ""),
                                     "path": record.get("path", ""), "error": record["error"]})
                     continue
-                sources.append({"agent": agent, "name": record.get("name", ""),
+                name, md5 = record.get("name", ""), record.get("md5", "")
+                import_sid = ""
+                if isinstance(name, str) and name and isinstance(md5, str) and md5:
+                    try:
+                        import_sid = store.skill_id_for(name, md5)
+                    except (TypeError, ValueError):
+                        import_sid = ""
+                sources.append({"agent": agent, "name": name,
                                 "category": record.get("category", ""),
-                                "path": record.get("path", ""), "md5": record.get("md5", ""),
+                                "path": record.get("path", ""), "md5": md5,
+                                "import_sid": import_sid,
                                 "size": record.get("size", 0), "desc": record.get("fm_desc", ""),
                                 "risks": record.get("risks", [])})
-    except (OSError, ValueError):
-        return []
+    except (OSError, ValueError) as exc:
+        return [{"agent": "", "name": "", "path": "",
+                 "error": f"{type(exc).__name__}: {exc}"}]
     return sources
+
+
+def _static_file(url_path: str) -> Path | None:
+    """把 /static/<rel> 映射到包内静态文件；只允许 .css/.js，拒绝穿越、隐藏文件和 symlink。"""
+    relative = unquote(url_path[len("/static/"):])
+    parts = relative.split("/")
+    if (not relative or "\\" in relative or "\x00" in relative or
+            any(not part or part.startswith(".") for part in parts)):
+        return None
+    candidate = STATIC_DIR.joinpath(*parts)
+    if candidate.suffix not in STATIC_TYPES or candidate.is_symlink() or not candidate.is_file():
+        return None
+    try:
+        candidate.resolve().relative_to(STATIC_DIR.resolve())
+    except ValueError:
+        return None
+    return candidate
 
 
 def _header_host(handler) -> str:
@@ -336,6 +373,14 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             if not self._authorized():
                 self._json({"error": "未授权的本地会话"}, 403)
+                return
+            if path.startswith("/static/"):
+                asset = _static_file(path)
+                if asset is None:
+                    self._json({"error": "not found"}, 404)
+                    return
+                self._send(200, asset.read_bytes(), STATIC_TYPES[asset.suffix],
+                           {"X-Content-Type-Options": "nosniff"})
                 return
             if path == "/api/data":
                 params = parse_qs(urlparse(self.path).query)

@@ -24,4 +24,4 @@ skillhub = "skillhub.cli:main"
 packages = ["skillhub"]
 
 [tool.setuptools.package-data]
-skillhub = ["*.html"]
+skillhub = ["*.html", "static/*.css", "static/js/*.js"]
