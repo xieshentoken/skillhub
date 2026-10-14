@@ -88,11 +88,11 @@
 - 全量回归：`PYTHONDONTWRITEBYTECODE=1 python3 tests/test_projection.py`，`Ran 47 tests ... OK`。
 - 静态检查：`python3 -m compileall -q skillhub tests`、全部 15 个 `skillhub/static/js/*.js` 的 `node --check`、`git diff --check` 均通过。
 - wheel 检查：构建 `skillhub-0.6.0-py3-none-any.whl` 成功；包内包含 `skillhub/gui.html`、`skillhub/static/gui.css` 和全部 15 个 JS 模块。构建工具仅安装到临时目录，未改变项目依赖声明。
-- 浏览器验收使用临时 fixture `/private/tmp/skillhub-gui-phase3-xM5II5`：可写 GUI 使用 8879 端口，只读 GUI 使用 8880 端口（令牌不记录）。已实际验证超过 100 个来源、多版本导入状态切换、确认导入后的刷新、分发来源回填/`REPLACE` 门禁和只读写操作提示。
+- 浏览器验收使用独立临时 fixture：可写 GUI 使用 8879 端口，只读 GUI 使用 8880 端口（令牌不记录）。已实际验证超过 100 个来源、多版本导入状态切换、确认导入后的刷新、分发来源回填/`REPLACE` 门禁和只读写操作提示。
 - 临时 GUI 启动方式：为 fixture 设置 `HOME`、`SKILLHUB_HOME` 以及各 `SKILLHUB_AGENT_DIR_<agent>` 覆盖后运行 `python3 -m skillhub gui --port 8879 --no-browser`；只读验收改用 8880 端口并增加 `--read-only`。真实环境不要复用这些 fixture 覆盖。
 - 分组浏览器验收覆盖：空名称经刷新仍为空；名称两侧空白保存后基线归一并可直接切换；“继续编辑”与 Esc 保留名称、成员、搜索；“放弃修改并切换”才丢弃；保存预览取消保留 dirty；页签返回和局部重绘保留草稿。
 - 慢异步验收使用临时 4 秒 `/api/groups` 延迟：预览期间名称输入实际被拒绝为 disabled；期间触发全局刷新后仍锁定；取消保留草稿。停止临时服务模拟执行失败显示 `执行失败：Failed to fetch`，取消后 `Fail Draft` 及 dirty 状态仍保留。
 - 主任务独立验收通过后，23 个文件已同步回原项目并逐字节核对；同步前确认原目录 17 个已跟踪文件的摘要均未变。原目录再次运行完整集成测试，47 项全部通过，15 个 ES 模块语法检查及 `git diff --check` 通过。
-- 主任务使用独立临时数据复测来源摘要变化、分组空名称/搜索经刷新保留、继续编辑/明确放弃、保存预览取消、trim 后保存无错误 dirty 状态，以及 4 秒预览期间刷新仍锁定、取消后解锁并保留草稿；未发现新增浏览器控制台错误。同步前副本保存在 `/private/tmp/skillhub-before-ui-fix-sync`。
+- 主任务使用独立临时数据复测来源摘要变化、分组空名称/搜索经刷新保留、继续编辑/明确放弃、保存预览取消、trim 后保存无错误 dirty 状态，以及 4 秒预览期间刷新仍锁定、取消后解锁并保留草稿；未发现新增浏览器控制台错误。同步前副本保存在本机临时备份目录。
 - 相关边界：测试未修改真实 agent/中央库，未调用付费模型 API；浏览器完整重载不恢复内存草稿。临时慢响应 wrapper 未进入项目文件。
-- 本轮实施与验收完成，监督自动化已暂停；已获用户授权将实际运行源码、GUI、测试与文档提交并推送至 `xieshentoken/skillhub`。用户原有源码压缩包和解压目录保留在本地，不纳入提交。
+- 本轮实施与验收完成，监督自动化已暂停；已获用户授权将实际运行源码、GUI、测试与文档提交并推送至项目 GitHub 仓库。用户原有源码压缩包和解压目录保留在本地，不纳入提交。
